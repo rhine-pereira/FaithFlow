@@ -6,22 +6,28 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.staggeredgrid.LazyVerticalStaggeredGrid
 import androidx.compose.foundation.lazy.staggeredgrid.StaggeredGridCells
 import androidx.compose.foundation.lazy.staggeredgrid.items
+import androidx.compose.foundation.pager.HorizontalPager
+import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.filled.FormatListBulleted
 import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.FormatBold
 import androidx.compose.material.icons.filled.FormatItalic
-import androidx.compose.material.icons.filled.FormatListBulleted
+import androidx.compose.material.icons.filled.FormatListNumbered
+import androidx.compose.material.icons.filled.Check
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.TextRange
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -30,6 +36,8 @@ import androidx.compose.ui.window.DialogProperties
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.rhinepereira.versetrack.data.PersonalNote
 import com.rhinepereira.versetrack.data.PersonalNoteCategory
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 import java.text.SimpleDateFormat
 import java.util.*
 
@@ -37,19 +45,18 @@ import java.util.*
 @Composable
 fun NotesScreen(viewModel: NotesViewModel = viewModel()) {
     val categories by viewModel.categories.collectAsState()
-    var selectedCategoryId by remember { mutableStateOf<String?>(null) }
     var noteToEdit by remember { mutableStateOf<PersonalNote?>(null) }
     var showAddCategoryDialog by remember { mutableStateOf(false) }
+    var noteToDelete by remember { mutableStateOf<PersonalNote?>(null) }
 
-    LaunchedEffect(categories) {
-        if (selectedCategoryId == null && categories.isNotEmpty()) {
-            selectedCategoryId = categories.first().id
-        }
-    }
+    val pagerState = rememberPagerState(pageCount = { categories.size })
+    val coroutineScope = rememberCoroutineScope()
 
     if (noteToEdit != null) {
         Dialog(
-            onDismissRequest = { noteToEdit = null },
+            onDismissRequest = { 
+                noteToEdit = null 
+            },
             properties = DialogProperties(
                 usePlatformDefaultWidth = false,
                 decorFitsSystemWindows = false
@@ -60,53 +67,65 @@ fun NotesScreen(viewModel: NotesViewModel = viewModel()) {
                 onDismiss = { noteToEdit = null },
                 onSave = { title, content ->
                     viewModel.updateNote(noteToEdit!!.copy(title = title, content = content))
-                    noteToEdit = null
                 }
             )
         }
     }
 
     Column(modifier = Modifier.fillMaxSize()) {
-        ScrollableTabRow(
-            selectedTabIndex = categories.indexOfFirst { it.id == selectedCategoryId }.coerceAtLeast(0),
-            edgePadding = 16.dp,
-            divider = {}
-        ) {
-            categories.forEach { category ->
+        if (categories.isNotEmpty()) {
+            ScrollableTabRow(
+                selectedTabIndex = pagerState.currentPage,
+                edgePadding = 16.dp,
+                divider = {}
+            ) {
+                categories.forEachIndexed { index, category ->
+                    Tab(
+                        selected = pagerState.currentPage == index,
+                        onClick = {
+                            coroutineScope.launch {
+                                pagerState.animateScrollToPage(index)
+                            }
+                        },
+                        text = { Text(category.name) }
+                    )
+                }
                 Tab(
-                    selected = selectedCategoryId == category.id,
-                    onClick = { selectedCategoryId = category.id },
-                    text = { Text(category.name) }
+                    selected = false,
+                    onClick = { showAddCategoryDialog = true },
+                    text = { Icon(Icons.Default.Add, contentDescription = "Add Category") }
                 )
             }
-            Tab(
-                selected = false,
-                onClick = { showAddCategoryDialog = true },
-                text = { Icon(Icons.Default.Add, contentDescription = "Add Category") }
-            )
+        } else {
+            // Initial state if categories haven't loaded yet
+            LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
         }
 
         Box(modifier = Modifier.weight(1f)) {
-            selectedCategoryId?.let { catId ->
-                val notes by viewModel.getNotesForCategory(catId).collectAsState(initial = emptyList())
+            HorizontalPager(
+                state = pagerState,
+                modifier = Modifier.fillMaxSize()
+            ) { pageIndex ->
+                val category = categories[pageIndex]
+                val notes by viewModel.getNotesForCategory(category.id).collectAsState(initial = emptyList())
                 
                 if (notes.isEmpty()) {
                     Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                        Text("No notes here yet.", color = MaterialTheme.colorScheme.outline)
+                        Text("No notes in ${category.name} yet.", color = MaterialTheme.colorScheme.outline)
                     }
                 } else {
                     LazyVerticalStaggeredGrid(
                         columns = StaggeredGridCells.Fixed(2),
                         modifier = Modifier.fillMaxSize(),
-                        contentPadding = PaddingValues(16.dp, 16.dp, 16.dp, 80.dp), // Padding to clear FAB
+                        contentPadding = PaddingValues(16.dp, 16.dp, 16.dp, 80.dp),
                         horizontalArrangement = Arrangement.spacedBy(12.dp),
                         verticalItemSpacing = 12.dp
                     ) {
-                        items(notes) { note ->
+                        items(notes, key = { it.id }) { note ->
                             KeepNoteItem(
                                 note = note,
                                 onClick = { noteToEdit = note },
-                                onDelete = { viewModel.deleteNote(note) }
+                                onDelete = { noteToDelete = note }
                             )
                         }
                     }
@@ -121,8 +140,10 @@ fun NotesScreen(viewModel: NotesViewModel = viewModel()) {
                     calendar.set(Calendar.SECOND, 0)
                     calendar.set(Calendar.MILLISECOND, 0)
                     
+                    val currentCategoryId = categories.getOrNull(pagerState.currentPage)?.id ?: ""
+                    
                     noteToEdit = PersonalNote(
-                        categoryId = selectedCategoryId ?: "", 
+                        categoryId = currentCategoryId, 
                         title = "", 
                         content = "",
                         date = calendar.timeInMillis
@@ -143,6 +164,30 @@ fun NotesScreen(viewModel: NotesViewModel = viewModel()) {
             onConfirm = { name ->
                 viewModel.addCategory(name)
                 showAddCategoryDialog = false
+            }
+        )
+    }
+
+    noteToDelete?.let { note ->
+        AlertDialog(
+            onDismissRequest = { noteToDelete = null },
+            title = { Text("Delete Note") },
+            text = { Text("Are you sure you want to delete this note?") },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        viewModel.deleteNote(note)
+                        noteToDelete = null
+                    },
+                    colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.error)
+                ) {
+                    Text("Delete")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { noteToDelete = null }) {
+                    Text("Cancel")
+                }
             }
         )
     }
@@ -205,7 +250,21 @@ fun FullScreenNoteEditor(
     var contentValue by remember { mutableStateOf(TextFieldValue(note.content)) }
     val scrollState = rememberScrollState()
 
-    BackHandler { onDismiss() }
+    // Auto-save logic: Debounced save to Room
+    LaunchedEffect(title, contentValue.text) {
+        if (title != note.title || contentValue.text != note.content) {
+            delay(1000) // Wait for 1 second of inactivity
+            onSave(title, contentValue.text)
+        }
+    }
+
+    // Final save on exit
+    val dismissAndSave = {
+        onSave(title, contentValue.text)
+        onDismiss()
+    }
+
+    BackHandler { dismissAndSave() }
 
     Scaffold(
         modifier = Modifier.fillMaxSize(),
@@ -213,13 +272,8 @@ fun FullScreenNoteEditor(
             TopAppBar(
                 title = {},
                 navigationIcon = {
-                    IconButton(onClick = onDismiss) {
+                    IconButton(onClick = dismissAndSave) {
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
-                    }
-                },
-                actions = {
-                    IconButton(onClick = { onSave(title, contentValue.text) }) {
-                        Icon(Icons.Default.Check, contentDescription = "Save")
                     }
                 }
             )
@@ -230,10 +284,10 @@ fun FullScreenNoteEditor(
                     modifier = Modifier
                         .fillMaxWidth()
                         .windowInsetsPadding(WindowInsets.ime)
-                        .padding(8.dp),
+                        .padding(horizontal = 8.dp, vertical = 4.dp),
                     horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
-                    IconButton(onClick = { contentValue = applyFormat(contentValue, "*") }) {
+                    IconButton(onClick = { contentValue = applyFormat(contentValue, "**") }) {
                         Icon(Icons.Default.FormatBold, contentDescription = "Bold")
                     }
                     IconButton(onClick = { contentValue = applyFormat(contentValue, "_") }) {
@@ -241,13 +295,13 @@ fun FullScreenNoteEditor(
                     }
                     IconButton(onClick = { 
                         val newText = if (contentValue.text.endsWith("\n") || contentValue.text.isEmpty()) {
-                            contentValue.text + "- [ ] "
+                            contentValue.text + "1. "
                         } else {
-                            contentValue.text + "\n- [ ] "
+                            contentValue.text + "\n1. "
                         }
-                        contentValue = contentValue.copy(text = newText, selection = androidx.compose.ui.text.TextRange(newText.length))
+                        contentValue = contentValue.copy(text = newText, selection = TextRange(newText.length))
                     }) {
-                        Icon(Icons.Default.FormatListBulleted, contentDescription = "Checklist")
+                        Icon(Icons.Default.FormatListNumbered, contentDescription = "Numbered List")
                     }
                 }
             }
@@ -272,11 +326,14 @@ fun FullScreenNoteEditor(
                     focusedIndicatorColor = Color.Transparent,
                     unfocusedIndicatorColor = Color.Transparent
                 ),
-                textStyle = MaterialTheme.typography.headlineSmall
+                textStyle = MaterialTheme.typography.headlineSmall,
+                keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Sentences)
             )
             TextField(
                 value = contentValue,
-                onValueChange = { contentValue = it },
+                onValueChange = { newValue ->
+                    contentValue = handleAutoList(contentValue, newValue)
+                },
                 placeholder = { Text("Note") },
                 modifier = Modifier.fillMaxWidth(),
                 colors = TextFieldDefaults.colors(
@@ -285,10 +342,75 @@ fun FullScreenNoteEditor(
                     disabledContainerColor = Color.Transparent,
                     focusedIndicatorColor = Color.Transparent,
                     unfocusedIndicatorColor = Color.Transparent
-                )
+                ),
+                keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Sentences)
             )
+            Spacer(modifier = Modifier.height(100.dp))
         }
     }
+}
+
+fun handleAutoList(oldValue: TextFieldValue, newValue: TextFieldValue): TextFieldValue {
+    // Only trigger if a single character was added and it's a newline
+    if (newValue.text.length != oldValue.text.length + 1) return newValue
+    if (newValue.text[newValue.selection.start - 1] != '\n') return newValue
+
+    val textBeforeNewline = newValue.text.substring(0, newValue.selection.start - 1)
+    val lastLineStart = textBeforeNewline.lastIndexOf('\n') + 1
+    val lastLine = textBeforeNewline.substring(lastLineStart)
+
+    // Check for ordered list: "1. "
+    val orderedListRegex = Regex("""^(\d+)\.\s+(.*)$""")
+    val orderedMatch = orderedListRegex.find(lastLine)
+    if (orderedMatch != null) {
+        val number = orderedMatch.groupValues[1].toInt()
+        val content = orderedMatch.groupValues[2]
+        
+        if (content.isEmpty()) {
+            // If the line was just "1. ", pressing enter removes it
+            val newText = newValue.text.substring(0, lastLineStart) + newValue.text.substring(newValue.selection.start)
+            return newValue.copy(text = newText, selection = TextRange(lastLineStart))
+        }
+        
+        val prefix = "${number + 1}. "
+        val newText = newValue.text.substring(0, newValue.selection.start) + prefix + newValue.text.substring(newValue.selection.start)
+        return newValue.copy(text = newText, selection = TextRange(newValue.selection.start + prefix.length))
+    }
+
+    // Check for bullet list: "- " or "* "
+    val bulletListRegex = Regex("""^([-*])\s+(.*)$""")
+    val bulletMatch = bulletListRegex.find(lastLine)
+    if (bulletMatch != null) {
+        val bullet = bulletMatch.groupValues[1]
+        val content = bulletMatch.groupValues[2]
+        
+        if (content.isEmpty()) {
+            val newText = newValue.text.substring(0, lastLineStart) + newValue.text.substring(newValue.selection.start)
+            return newValue.copy(text = newText, selection = TextRange(lastLineStart))
+        }
+        
+        val prefix = "$bullet "
+        val newText = newValue.text.substring(0, newValue.selection.start) + prefix + newValue.text.substring(newValue.selection.start)
+        return newValue.copy(text = newText, selection = TextRange(newValue.selection.start + prefix.length))
+    }
+    
+    // Check for checklist: "- [ ] "
+    val checklistRegex = Regex("""^(-\s\[\s\]\s)(.*)$""")
+    val checklistMatch = checklistRegex.find(lastLine)
+    if (checklistMatch != null) {
+        val prefix = checklistMatch.groupValues[1]
+        val content = checklistMatch.groupValues[2]
+        
+        if (content.isEmpty()) {
+            val newText = newValue.text.substring(0, lastLineStart) + newValue.text.substring(newValue.selection.start)
+            return newValue.copy(text = newText, selection = TextRange(lastLineStart))
+        }
+        
+        val newText = newValue.text.substring(0, newValue.selection.start) + prefix + newValue.text.substring(newValue.selection.start)
+        return newValue.copy(text = newText, selection = TextRange(newValue.selection.start + prefix.length))
+    }
+
+    return newValue
 }
 
 fun applyFormat(value: TextFieldValue, symbol: String): TextFieldValue {
@@ -302,7 +424,7 @@ fun applyFormat(value: TextFieldValue, symbol: String): TextFieldValue {
     }
     
     val newCursorPos = if (selection.collapsed) selection.start + symbol.length else selection.end + symbol.length * 2
-    return value.copy(text = formatted, selection = androidx.compose.ui.text.TextRange(newCursorPos))
+    return value.copy(text = formatted, selection = TextRange(newCursorPos))
 }
 
 @Composable
@@ -312,7 +434,12 @@ fun AddCategoryDialog(onDismiss: () -> Unit, onConfirm: (String) -> Unit) {
         onDismissRequest = onDismiss,
         title = { Text("New Category") },
         text = {
-            TextField(value = name, onValueChange = { name = it }, label = { Text("Category Name") })
+            TextField(
+                value = name, 
+                onValueChange = { name = it }, 
+                label = { Text("Category Name") },
+                keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Sentences)
+            )
         },
         confirmButton = {
             Button(onClick = { if (name.isNotBlank()) onConfirm(name) }) { Text("Add") }
