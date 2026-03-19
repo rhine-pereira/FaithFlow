@@ -1,4 +1,4 @@
-package com.rhinepereira.versetrack.data
+package com.rhinepereira.faithflow.data
 
 object BibleData {
     val catholicBooks = listOf(

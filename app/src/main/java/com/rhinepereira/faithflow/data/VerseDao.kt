@@ -1,4 +1,4 @@
-package com.rhinepereira.versetrack.data
+package com.rhinepereira.faithflow.data
 
 import androidx.room.*
 import kotlinx.coroutines.flow.Flow
@@ -40,11 +40,12 @@ interface VerseDao {
     suspend fun getUnsyncedNotes(): List<Note>
 
     // Daily Records
+    /*
     @Query("SELECT * FROM daily_records WHERE userId = :userId ORDER BY date DESC")
     fun getAllDailyRecords(userId: String): Flow<List<DailyRecord>>
 
     @Query("SELECT * FROM daily_records WHERE userId = :userId AND date >= :startOfDay AND date < :endOfDay LIMIT 1")
-    fun getRecordForDate(userId: String, startOfToday: Long, endOfToday: Long): Flow<DailyRecord?>
+    fun getRecordForDate(userId: String, startOfDay: Long, endOfDay: Long): Flow<DailyRecord?>
 
     @Query("SELECT * FROM daily_records WHERE userId = :userId AND date >= :startOfDay AND date < :endOfDay LIMIT 1")
     suspend fun getRecordForDateSync(userId: String, startOfDay: Long, endOfDay: Long): DailyRecord?
@@ -57,6 +58,7 @@ interface VerseDao {
 
     @Query("SELECT * FROM daily_records WHERE isSynced = 0")
     suspend fun getUnsyncedDailyRecords(): List<DailyRecord>
+    */
 
     // Personal Notes
     @Query("SELECT * FROM personal_note_categories WHERE userId = :userId ORDER BY createdAt ASC")
@@ -68,6 +70,9 @@ interface VerseDao {
     @Query("SELECT * FROM personal_notes WHERE categoryId = :categoryId ORDER BY date DESC")
     fun getNotesForCategory(categoryId: String): Flow<List<PersonalNote>>
 
+    @Query("SELECT * FROM personal_notes WHERE categoryId = :categoryId")
+    suspend fun getNotesForCategorySync(categoryId: String): List<PersonalNote>
+
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertPersonalNote(note: PersonalNote)
 
@@ -76,6 +81,12 @@ interface VerseDao {
 
     @Delete
     suspend fun deletePersonalNote(note: PersonalNote)
+
+    @Delete
+    suspend fun deleteCategory(category: PersonalNoteCategory)
+
+    @Query("SELECT * FROM personal_note_categories WHERE userId = :userId AND name IN ('CYP Talks', 'CGS Talks', 'Prophecies', 'prophcy')")
+    suspend fun getLegacyCategories(userId: String): List<PersonalNoteCategory>
 
     @Query("SELECT * FROM personal_note_categories WHERE isSynced = 0")
     suspend fun getUnsyncedCategories(): List<PersonalNoteCategory>

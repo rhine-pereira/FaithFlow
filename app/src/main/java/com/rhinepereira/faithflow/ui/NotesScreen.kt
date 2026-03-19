@@ -1,4 +1,4 @@
-package com.rhinepereira.versetrack.ui
+package com.rhinepereira.faithflow.ui
 
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedVisibility
@@ -6,6 +6,8 @@ import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
+import androidx.compose.foundation.gestures.detectDragGesturesAfterLongPress
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.staggeredgrid.LazyVerticalStaggeredGrid
@@ -14,24 +16,26 @@ import androidx.compose.foundation.lazy.staggeredgrid.items
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.material.pullrefresh.PullRefreshIndicator
+import androidx.compose.material.pullrefresh.pullRefresh
+import androidx.compose.material.pullrefresh.rememberPullRefreshState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
-import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.ExperimentalMaterialApi
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.automirrored.filled.FormatListBulleted
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.FormatBold
 import androidx.compose.material.icons.filled.FormatItalic
 import androidx.compose.material.icons.filled.FormatListNumbered
-import androidx.compose.material.icons.filled.Check
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.SpanStyle
@@ -50,25 +54,47 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import androidx.lifecycle.viewmodel.compose.viewModel
-import com.rhinepereira.versetrack.data.PersonalNote
-import com.rhinepereira.versetrack.data.PersonalNoteCategory
-import com.rhinepereira.versetrack.data.BibleData
-import com.rhinepereira.versetrack.data.BibleDatabaseHelper
+import com.rhinepereira.faithflow.data.PersonalNote
+import com.rhinepereira.faithflow.data.PersonalNoteCategory
+import com.rhinepereira.faithflow.data.BibleData
+import com.rhinepereira.faithflow.data.BibleDatabaseHelper
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import java.text.SimpleDateFormat
 import java.util.*
 
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalMaterialApi::class)
 @Composable
 fun NotesScreen(viewModel: NotesViewModel = viewModel()) {
-    val categories by viewModel.categories.collectAsState()
+    val categories by viewModel.categories.collectAsState(initial = emptyList())
     var noteToEdit by remember { mutableStateOf<PersonalNote?>(null) }
     var showAddCategoryDialog by remember { mutableStateOf(false) }
     var noteToDelete by remember { mutableStateOf<PersonalNote?>(null) }
+    var categoryToDelete by remember { mutableStateOf<PersonalNoteCategory?>(null) }
+    var isEditMode by remember { mutableStateOf(false) }
+    var isRefreshing by remember { mutableStateOf(false) }
+    val coroutineScope = rememberCoroutineScope()
+    val editableCategories = remember { mutableStateListOf<PersonalNoteCategory>() }
+    
+    val pullRefreshState =  rememberPullRefreshState(
+        refreshing = isRefreshing,
+        onRefresh = {
+            isRefreshing = true
+            coroutineScope.launch {
+                viewModel.syncFromCloud()
+                isRefreshing = false
+            }
+        }
+    )
 
     val pagerState = rememberPagerState(pageCount = { categories.size })
-    val coroutineScope = rememberCoroutineScope()
+
+    LaunchedEffect(isEditMode) {
+        if (isEditMode) {
+            editableCategories.clear()
+            editableCategories.addAll(categories)
+        }
+    }
 
     if (noteToEdit != null) {
         Dialog(
@@ -90,37 +116,139 @@ fun NotesScreen(viewModel: NotesViewModel = viewModel()) {
 
     Column(modifier = Modifier.fillMaxSize()) {
         if (categories.isNotEmpty()) {
-            ScrollableTabRow(
-                selectedTabIndex = pagerState.currentPage,
-                edgePadding = 16.dp,
-                divider = {}
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp, vertical = 8.dp),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
             ) {
-                categories.forEachIndexed { index, category ->
-                    Tab(
-                        selected = pagerState.currentPage == index,
-                        onClick = {
-                            coroutineScope.launch {
-                                pagerState.animateScrollToPage(index)
-                            }
-                        },
-                        text = { Text(category.name) }
-                    )
+                if (isEditMode) {
+                    Text("Edit mode: drag tabs to reorder", style = MaterialTheme.typography.labelMedium)
+                } else {
+                    Spacer(modifier = Modifier.width(1.dp))
                 }
-                Tab(
-                    selected = false,
-                    onClick = { showAddCategoryDialog = true },
-                    text = { Icon(Icons.Default.Add, contentDescription = "Add Category") }
-                )
+
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    TextButton(onClick = { showAddCategoryDialog = true }) {
+                        Text("Add Category")
+                    }
+
+                    TextButton(
+                        onClick = {
+                            if (isEditMode) {
+                                val currentId = categories.getOrNull(pagerState.currentPage)?.id
+                                viewModel.reorderCategories(editableCategories.toList())
+                                isEditMode = false
+                                currentId?.let { selectedId ->
+                                    val targetIndex = editableCategories.indexOfFirst { it.id == selectedId }
+                                    if (targetIndex >= 0) {
+                                        coroutineScope.launch { pagerState.scrollToPage(targetIndex) }
+                                    }
+                                }
+                            } else {
+                                isEditMode = true
+                            }
+                        }
+                    ) {
+                        Text(if (isEditMode) "Done" else "Edit Tabs")
+                    }
+                }
+            }
+
+            if (isEditMode) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .horizontalScroll(rememberScrollState())
+                        .padding(horizontal = 16.dp, vertical = 8.dp),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    editableCategories.forEach { category ->
+                        Surface(
+                            shape = RoundedCornerShape(20.dp),
+                            tonalElevation = 2.dp,
+                            modifier = Modifier
+                                .pointerInput(editableCategories.size, category.id) {
+                                    var accumulatedDragX = 0f
+                                    val swapThreshold = 28f
+                                    detectDragGesturesAfterLongPress(
+                                        onDrag = { change, dragAmount ->
+                                            change.consume()
+                                            val currentIndex = editableCategories.indexOfFirst { it.id == category.id }
+                                            if (currentIndex == -1) return@detectDragGesturesAfterLongPress
+
+                                            accumulatedDragX += dragAmount.x
+
+                                            if (accumulatedDragX > swapThreshold && currentIndex < editableCategories.lastIndex) {
+                                                val next = editableCategories[currentIndex + 1]
+                                                editableCategories[currentIndex + 1] = editableCategories[currentIndex]
+                                                editableCategories[currentIndex] = next
+                                                accumulatedDragX = 0f
+                                            } else if (accumulatedDragX < -swapThreshold && currentIndex > 0) {
+                                                val prev = editableCategories[currentIndex - 1]
+                                                editableCategories[currentIndex - 1] = editableCategories[currentIndex]
+                                                editableCategories[currentIndex] = prev
+                                                accumulatedDragX = 0f
+                                            }
+                                        }
+                                    )
+                                }
+                        ) {
+                            Row(
+                                modifier = Modifier.padding(start = 12.dp, end = 6.dp, top = 8.dp, bottom = 8.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(6.dp)
+                            ) {
+                                Text(
+                                    text = category.name,
+                                    style = MaterialTheme.typography.labelLarge
+                                )
+                                IconButton(
+                                    onClick = { categoryToDelete = category },
+                                    modifier = Modifier.size(20.dp)
+                                ) {
+                                    Icon(
+                                        Icons.Default.Delete,
+                                        contentDescription = "Delete Category",
+                                        tint = MaterialTheme.colorScheme.error,
+                                        modifier = Modifier.size(14.dp)
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
+            } else {
+                ScrollableTabRow(
+                    selectedTabIndex = pagerState.currentPage,
+                    edgePadding = 16.dp,
+                    divider = {}
+                ) {
+                    categories.forEachIndexed { index: Int, category: PersonalNoteCategory ->
+                        Tab(
+                            selected = pagerState.currentPage == index,
+                            onClick = {
+                                coroutineScope.launch {
+                                    pagerState.animateScrollToPage(index)
+                                }
+                            },
+                            text = { Text(category.name) }
+                        )
+                    }
+                }
             }
         }
 
-        Box(modifier = Modifier.weight(1f)) {
+        Box(modifier = Modifier
+            .weight(1f)
+            .pullRefresh(pullRefreshState)) {
             HorizontalPager(
                 state = pagerState,
                 modifier = Modifier.fillMaxSize()
-            ) { pageIndex ->
+            ) { pageIndex: Int ->
                 val category = categories.getOrNull(pageIndex) ?: return@HorizontalPager
-                val notes by viewModel.getNotesForCategory(category.id).collectAsState(initial = emptyList())
+                val notes by viewModel.getNotesForCategory(category.id).collectAsState(initial = emptyList<PersonalNote>())
                 
                 if (notes.isEmpty()) {
                     Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
@@ -134,7 +262,7 @@ fun NotesScreen(viewModel: NotesViewModel = viewModel()) {
                         horizontalArrangement = Arrangement.spacedBy(12.dp),
                         verticalItemSpacing = 12.dp
                     ) {
-                        items(notes, key = { it.id }) { note ->
+                        items(notes, key = { it.id }) { note: PersonalNote ->
                             KeepNoteItem(
                                 note = note,
                                 onClick = { noteToEdit = note },
@@ -168,6 +296,12 @@ fun NotesScreen(viewModel: NotesViewModel = viewModel()) {
             ) {
                 Icon(Icons.Default.Add, contentDescription = "Add Note")
             }
+            
+            PullRefreshIndicator(
+                refreshing = isRefreshing,
+                state = pullRefreshState,
+                modifier = Modifier.align(Alignment.TopCenter)
+            )
         }
     }
 
@@ -199,6 +333,30 @@ fun NotesScreen(viewModel: NotesViewModel = viewModel()) {
             },
             dismissButton = {
                 TextButton(onClick = { noteToDelete = null }) {
+                    Text("Cancel")
+                }
+            }
+        )
+    }
+    
+    categoryToDelete?.let { category ->
+        AlertDialog(
+            onDismissRequest = { categoryToDelete = null },
+            title = { Text("Delete Category") },
+            text = { Text("Are you sure you want to delete \"${category.name}\" and all its notes?") },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        viewModel.deleteCategory(category)
+                        categoryToDelete = null
+                    },
+                    colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.error)
+                ) {
+                    Text("Delete")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { categoryToDelete = null }) {
                     Text("Cancel")
                 }
             }
@@ -703,3 +861,4 @@ fun AddCategoryDialog(onDismiss: () -> Unit, onConfirm: (String) -> Unit) {
         }
     )
 }
+

@@ -1,11 +1,8 @@
-package com.rhinepereira.versetrack.data
+package com.rhinepereira.faithflow.data
 
-import com.rhinepereira.versetrack.BuildConfig
+import com.rhinepereira.faithflow.BuildConfig
 import io.github.jan.supabase.SupabaseClient
 import io.github.jan.supabase.createSupabaseClient
-import io.github.jan.supabase.gotrue.GoTrue
-import io.github.jan.supabase.compose.auth.ComposeAuth
-import io.github.jan.supabase.compose.auth.googleNativeLogin
 import io.github.jan.supabase.postgrest.Postgrest
 
 object SupabaseConfig {
@@ -15,10 +12,6 @@ object SupabaseConfig {
             supabaseKey = BuildConfig.SUPABASE_KEY
         ) {
             install(Postgrest)
-            install(GoTrue)
-            install(ComposeAuth) {
-                googleNativeLogin(serverClientId = BuildConfig.GOOGLE_CLIENT_ID)
-            }
         }
     }
 }

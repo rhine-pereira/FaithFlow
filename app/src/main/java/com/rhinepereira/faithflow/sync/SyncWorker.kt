@@ -1,11 +1,11 @@
-package com.rhinepereira.versetrack.sync
+package com.rhinepereira.faithflow.sync
 
 import android.content.Context
 import androidx.work.CoroutineWorker
 import androidx.work.WorkerParameters
-import com.rhinepereira.versetrack.data.AppDatabase
-import com.rhinepereira.versetrack.data.SupabaseConfig
-import io.github.jan.supabase.gotrue.gotrue
+import com.rhinepereira.faithflow.data.AppDatabase
+import com.rhinepereira.faithflow.data.SupabaseConfig
+import com.google.firebase.auth.FirebaseAuth
 import io.github.jan.supabase.postgrest.postgrest
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -20,7 +20,7 @@ class SyncWorker(
         val dao = database.verseDao()
 
         // Get current user ID - skip sync if not authenticated
-        val userId = SupabaseConfig.client.gotrue.currentUserOrNull()?.id
+        val userId = FirebaseAuth.getInstance().currentUser?.uid
             ?: return@withContext Result.retry()
 
         try {
@@ -39,11 +39,13 @@ class SyncWorker(
             }
 
             // 3. Sync Daily Records
+            /*
             val unsyncedRecords = dao.getUnsyncedDailyRecords()
             unsyncedRecords.forEach { record ->
                 SupabaseConfig.client.postgrest["daily_records"].upsert(record.copy(userId = userId))
                 dao.updateDailyRecord(record.copy(isSynced = true, userId = userId))
             }
+            */
 
             // 4. Sync Personal Note Categories
             val unsyncedCategories = dao.getUnsyncedCategories()

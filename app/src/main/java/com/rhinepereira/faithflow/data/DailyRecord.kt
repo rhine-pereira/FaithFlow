@@ -1,4 +1,4 @@
-package com.rhinepereira.versetrack.data
+package com.rhinepereira.faithflow.data
 
 import androidx.room.Entity
 import androidx.room.Index
@@ -7,6 +7,7 @@ import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 import java.util.*
 
+/*
 @Serializable
 @Entity(
     tableName = "daily_records",
@@ -21,7 +22,7 @@ data class DailyRecord(
     @SerialName("read_today")
     val readToday: Boolean = false,
     @SerialName("what_read")
-    val whatRead: String = "",
+    val whatRead: String? = null,
     @SerialName("total_read_time_minutes")
     val totalReadTimeMinutes: Int = 0,
     
@@ -30,7 +31,7 @@ data class DailyRecord(
     @SerialName("total_prayer_time_minutes")
     val totalPrayerTimeMinutes: Int = 0,
     @SerialName("prophecy")
-    val prophecy: String = "",
+    val prophecy: String? = null,
     
     @SerialName("user_id")
     val userId: String = "",
@@ -39,3 +40,4 @@ data class DailyRecord(
     @SerialName("is_synced")
     val isSynced: Boolean = false
 )
+*/

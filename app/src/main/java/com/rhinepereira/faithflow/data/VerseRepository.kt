@@ -1,10 +1,12 @@
-package com.rhinepereira.versetrack.data
+package com.rhinepereira.faithflow.data
 
 import android.content.Context
 import androidx.work.*
-import com.rhinepereira.versetrack.sync.SyncWorker
-import io.github.jan.supabase.gotrue.gotrue
+import com.rhinepereira.faithflow.sync.SyncWorker
+import com.google.firebase.auth.FirebaseAuth
+import android.util.Log
 import io.github.jan.supabase.postgrest.postgrest
+import io.github.jan.supabase.postgrest.query.Columns
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -16,7 +18,7 @@ class VerseRepository(private val context: Context, private val verseDao: VerseD
     fun getVersesForNote(noteId: String): Flow<List<Verse>> = verseDao.getVersesForNote(noteId)
 
     private fun getCurrentUserId(): String {
-        return SupabaseConfig.client.gotrue.currentUserOrNull()?.id ?: ""
+        return FirebaseAuth.getInstance().currentUser?.uid ?: ""
     }
 
     suspend fun insertNote(note: Note) {
@@ -60,40 +62,64 @@ class VerseRepository(private val context: Context, private val verseDao: VerseD
         }
     }
 
-    suspend fun fetchFromSupabase() = withContext(Dispatchers.IO) {
+    suspend fun fetchFromSupabase(userId: String) = withContext(Dispatchers.IO) {
+        val tag = "FaithFlowSync"
         try {
-            // With RLS enabled, these queries automatically return only the current user's data
-            
+            if (userId.isBlank()) {
+                Log.d(tag, "Fetch skipped: blind userId")
+                return@withContext
+            }
+            Log.d(tag, "Starting fetch for userId: $userId")
+
             // Fetch Notes
-            val notes = SupabaseConfig.client.postgrest["notes"].select().decodeList<Note>()
+            val notes = SupabaseConfig.client.postgrest["notes"].select {
+                filter { eq("user_id", userId) }
+            }.decodeList<Note>()
+            Log.d(tag, "Fetched ${notes.size} notes (themes)")
             notes.forEach { note ->
-                verseDao.insertNote(note.copy(isSynced = true))
+                verseDao.insertNote(note.copy(isSynced = true, userId = userId))
             }
 
             // Fetch Verses
-            val verses = SupabaseConfig.client.postgrest["verses"].select().decodeList<Verse>()
+            val verses = SupabaseConfig.client.postgrest["verses"].select {
+                filter { eq("user_id", userId) }
+            }.decodeList<Verse>()
+            Log.d(tag, "Fetched ${verses.size} verses")
             verses.forEach { verse ->
-                verseDao.insertVerse(verse.copy(isSynced = true))
+                verseDao.insertVerse(verse.copy(isSynced = true, userId = userId))
             }
             
             // Fetch Daily Records
-            val records = SupabaseConfig.client.postgrest["daily_records"].select().decodeList<DailyRecord>()
+            /*
+            val records = SupabaseConfig.client.postgrest["daily_records"].select {
+                filter { eq("user_id", userId) }
+            }.decodeList<DailyRecord>()
+            Log.d(tag, "Fetched ${records.size} daily records")
             records.forEach { record ->
-                verseDao.insertDailyRecord(record.copy(isSynced = true))
+                verseDao.insertDailyRecord(record.copy(isSynced = true, userId = userId))
             }
+            */
 
             // Fetch Categories
-            val categories = SupabaseConfig.client.postgrest["personal_note_categories"].select().decodeList<PersonalNoteCategory>()
-            categories.forEach { category ->
-                verseDao.insertCategory(category.copy(isSynced = true))
+            val categoriesData = SupabaseConfig.client.postgrest["personal_note_categories"].select {
+                filter { eq("user_id", userId) }
+            }.decodeList<PersonalNoteCategory>()
+            Log.d(tag, "Fetched ${categoriesData.size} categories")
+            categoriesData.forEach { category ->
+                verseDao.insertCategory(category.copy(isSynced = true, userId = userId))
             }
 
             // Fetch Personal Notes
-            val personalNotes = SupabaseConfig.client.postgrest["personal_notes"].select().decodeList<PersonalNote>()
+            val personalNotes = SupabaseConfig.client.postgrest["personal_notes"].select {
+                filter { eq("user_id", userId) }
+            }.decodeList<PersonalNote>()
+            Log.d(tag, "Fetched ${personalNotes.size} personal notes")
             personalNotes.forEach { personalNote ->
-                verseDao.insertPersonalNote(personalNote.copy(isSynced = true))
+                verseDao.insertPersonalNote(personalNote.copy(isSynced = true, userId = userId))
             }
+            Log.d(tag, "Fetch completed successfully")
         } catch (e: Exception) {
+            Log.e(tag, "Fetch failed spectacularly", e)
             e.printStackTrace()
         }
     }

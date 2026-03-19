@@ -1,4 +1,4 @@
-package com.rhinepereira.versetrack.data
+package com.rhinepereira.faithflow.data
 
 import androidx.room.Embedded
 import androidx.room.Entity

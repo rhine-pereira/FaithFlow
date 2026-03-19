@@ -1,4 +1,4 @@
-package com.rhinepereira.versetrack.ui
+package com.rhinepereira.faithflow.ui
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -20,13 +20,13 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
-import com.rhinepereira.versetrack.data.DailyRecord
 import java.text.SimpleDateFormat
 import java.util.*
 
+/*
 @Composable
 fun CalendarScreen(viewModel: DailyViewModel = viewModel()) {
-    val allRecords by viewModel.allDailyRecords.collectAsState(initial = emptyList())
+    val allRecords by viewModel.allDailyRecords.collectAsState(initial = emptyList<DailyRecord>())
     var currentMonth by remember { mutableStateOf(Calendar.getInstance()) }
     var selectedDateRecord by remember { mutableStateOf<DailyRecord?>(null) }
 
@@ -108,9 +108,9 @@ fun CalendarScreen(viewModel: DailyViewModel = viewModel()) {
                     Text(df.format(Date(record.date)), fontWeight = FontWeight.Bold)
                     Spacer(modifier = Modifier.height(8.dp))
                     Text("Bible Reading: ${if (record.readToday) "✅ (${record.totalReadTimeMinutes}m)" else "❌"}")
-                    if (record.readToday) Text("Content: ${record.whatRead}", style = MaterialTheme.typography.bodySmall)
+                    if (record.readToday && record.whatRead?.isNotBlank() == true) Text("Content: ${record.whatRead}", style = MaterialTheme.typography.bodySmall)
                     Text("Prayer: ${if (record.prayedToday) "✅ (${record.totalPrayerTimeMinutes}m)" else "❌"}")
-                    if (record.prophecy.isNotBlank()) Text("Prophecy: ${record.prophecy}", style = MaterialTheme.typography.bodySmall)
+                    if (record.prophecy?.isNotBlank() == true) Text("Prophecy: ${record.prophecy}", style = MaterialTheme.typography.bodySmall)
                 }
             }
         }
@@ -167,3 +167,4 @@ fun isSameDay(t1: Long, t2: Long): Boolean {
     return cal1.get(Calendar.YEAR) == cal2.get(Calendar.YEAR) &&
            cal1.get(Calendar.DAY_OF_YEAR) == cal2.get(Calendar.DAY_OF_YEAR)
 }
+*/

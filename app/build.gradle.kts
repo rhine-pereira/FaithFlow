@@ -5,14 +5,15 @@ plugins {
     alias(libs.plugins.kotlin.serialization)
     alias(libs.plugins.ksp)
     alias(libs.plugins.secrets)
+    alias(libs.plugins.google.services)
 }
 
 android {
-    namespace = "com.rhinepereira.versetrack"
+    namespace = "com.rhinepereira.faithflow"
     compileSdk = 36
 
     defaultConfig {
-        applicationId = "com.rhinepereira.versetrack"
+        applicationId = "com.rhinepereira.faithflow"
         minSdk = 24
         targetSdk = 36
         versionCode = 1
@@ -52,6 +53,7 @@ dependencies {
     implementation(libs.androidx.compose.ui.graphics)
     implementation(libs.androidx.compose.ui.tooling.preview)
     implementation(libs.androidx.compose.material3)
+    implementation(libs.androidx.compose.material)
     implementation(libs.androidx.navigation.compose)
     implementation(libs.androidx.compose.material.icons.extended)
 
@@ -60,12 +62,14 @@ dependencies {
     implementation(libs.room.ktx)
     ksp(libs.room.compiler)
 
-    // Supabase
+    // Supabase (Database only)
     implementation(libs.supabase.postgrest)
-    implementation(libs.supabase.gotrue)
-    implementation(libs.supabase.compose.auth)
-    implementation(libs.supabase.compose.auth.ui)
     implementation(libs.kotlinx.serialization.json)
+    
+    // Firebase
+    implementation(platform(libs.firebase.bom))
+    implementation(libs.firebase.auth)
+    implementation(libs.firebase.auth.ktx)
     
     // Ktor Engine (Required for Supabase)
     implementation(libs.ktor.client.android)

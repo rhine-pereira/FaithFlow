@@ -1,10 +1,9 @@
-package com.rhinepereira.versetrack.ui
+package com.rhinepereira.faithflow.ui
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.rhinepereira.versetrack.data.AuthRepository
-import com.rhinepereira.versetrack.data.SupabaseConfig
-import io.github.jan.supabase.gotrue.SessionStatus
+import com.rhinepereira.faithflow.data.AuthRepository
+import com.rhinepereira.faithflow.data.AuthStatus
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -24,16 +23,11 @@ class AuthViewModel : ViewModel() {
 
     init {
         viewModelScope.launch {
-            authRepository.sessionStatusFlow().collect { status ->
+            authRepository.authStatusFlow().collect { status ->
                 _authState.value = when (status) {
-                    is SessionStatus.Authenticated -> {
-                        val userId = authRepository.currentUserId
-                        if (userId != null) AuthState.SignedIn(userId)
-                        else AuthState.SignedOut
-                    }
-                    is SessionStatus.NotAuthenticated -> AuthState.SignedOut
-                    is SessionStatus.LoadingFromStorage -> AuthState.Loading
-                    is SessionStatus.NetworkError -> AuthState.SignedOut
+                    is AuthStatus.Authenticated -> AuthState.SignedIn(status.userId)
+                    is AuthStatus.Unauthenticated -> AuthState.SignedOut
+                    is AuthStatus.Loading -> AuthState.Loading
                 }
             }
         }
@@ -42,6 +36,17 @@ class AuthViewModel : ViewModel() {
     fun signOut() {
         viewModelScope.launch {
             authRepository.signOut()
+        }
+    }
+
+    fun signInWithGoogle(idToken: String, onResult: (Boolean) -> Unit) {
+        viewModelScope.launch {
+            try {
+                authRepository.signInWithGoogle(idToken)
+                onResult(true)
+            } catch (e: Exception) {
+                onResult(false)
+            }
         }
     }
 }

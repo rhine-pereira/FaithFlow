@@ -1,4 +1,4 @@
-package com.rhinepereira.versetrack
+package com.rhinepereira.faithflow
 
 import android.content.Intent
 import android.os.Bundle
@@ -15,11 +15,11 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.lifecycle.viewmodel.compose.viewModel
-import com.rhinepereira.versetrack.ui.AuthState
-import com.rhinepereira.versetrack.ui.AuthViewModel
-import com.rhinepereira.versetrack.ui.LoginScreen
-import com.rhinepereira.versetrack.ui.MainContainer
-import com.rhinepereira.versetrack.ui.theme.VerseTrackTheme
+import com.rhinepereira.faithflow.ui.AuthState
+import com.rhinepereira.faithflow.ui.AuthViewModel
+import com.rhinepereira.faithflow.ui.LoginScreen
+import com.rhinepereira.faithflow.ui.MainContainer
+import com.rhinepereira.faithflow.ui.theme.FaithFlowTheme
 
 class MainActivity : ComponentActivity() {
     private var sharedText by mutableStateOf<String?>(null)
@@ -30,7 +30,7 @@ class MainActivity : ComponentActivity() {
         
         enableEdgeToEdge()
         setContent {
-            VerseTrackTheme {
+            FaithFlowTheme {
                 val authViewModel: AuthViewModel = viewModel()
                 val authState by authViewModel.authState.collectAsState()
 
@@ -44,7 +44,7 @@ class MainActivity : ComponentActivity() {
                         }
                     }
                     is AuthState.SignedOut -> {
-                        LoginScreen()
+                        LoginScreen(authViewModel)
                     }
                     is AuthState.SignedIn -> {
                         MainContainer(

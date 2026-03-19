@@ -1,4 +1,4 @@
-package com.rhinepereira.versetrack.ui
+package com.rhinepereira.faithflow.ui
 
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
@@ -13,9 +13,10 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 
+/*
 @Composable
 fun DailyScreen(viewModel: DailyViewModel = viewModel()) {
-    val todayRecord by viewModel.todayRecord.collectAsState()
+    val todayRecord by viewModel.todayRecord.collectAsState(initial = null)
     val scrollState = rememberScrollState()
 
     // Local states to make typing feel snappy
@@ -25,13 +26,12 @@ fun DailyScreen(viewModel: DailyViewModel = viewModel()) {
     var prophecy by remember { mutableStateOf("") }
 
     // Sync local state when the database record changes (e.g., on first load)
-    // We only update if the user isn't currently typing (basic check)
     LaunchedEffect(todayRecord) {
-        todayRecord?.let { record ->
-            whatRead = record.whatRead
+        todayRecord?.let { record: DailyRecord ->
+            whatRead = record.whatRead ?: ""
             readTime = if (record.totalReadTimeMinutes > 0) record.totalReadTimeMinutes.toString() else ""
             prayerTime = if (record.totalPrayerTimeMinutes > 0) record.totalPrayerTimeMinutes.toString() else ""
-            prophecy = record.prophecy
+            prophecy = record.prophecy ?: ""
         }
     }
 
@@ -127,3 +127,4 @@ fun DailyScreen(viewModel: DailyViewModel = viewModel()) {
         Spacer(modifier = Modifier.height(80.dp))
     }
 }
+*/

@@ -1,4 +1,4 @@
-package com.rhinepereira.versetrack.ui
+package com.rhinepereira.faithflow.ui
 
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
@@ -32,13 +32,13 @@ fun MainContainer(
     onSignOut: () -> Unit = {}
 ) {
     val navController = rememberNavController()
-    val items = listOf(Screen.Themes, Screen.Daily, Screen.Calendar, Screen.PersonalNotes)
+    val items = listOf(Screen.Themes, Screen.Calendar, Screen.PersonalNotes)
     var showSignOutDialog by remember { mutableStateOf(false) }
 
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("VerseTrack") },
+                title = { Text("FaithFlow") },
                 actions = {
                     IconButton(onClick = { showSignOutDialog = true }) {
                         Icon(Icons.AutoMirrored.Filled.Logout, contentDescription = "Sign Out")
@@ -80,12 +80,9 @@ fun MainContainer(
                     onSharedTextConsumed = onSharedTextConsumed
                 )
             }
-            composable(Screen.Daily.route) {
-                DailyScreen()
-            }
-            composable(Screen.Calendar.route) {
-                CalendarScreen()
-            }
+//            composable(Screen.Calendar.route) {
+//                CalendarScreen()
+//            }
             composable(Screen.PersonalNotes.route) {
                 NotesScreen()
             }

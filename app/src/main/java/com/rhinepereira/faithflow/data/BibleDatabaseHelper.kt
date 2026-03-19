@@ -1,4 +1,4 @@
-package com.rhinepereira.versetrack.data
+package com.rhinepereira.faithflow.data
 
 import android.content.Context
 import android.database.sqlite.SQLiteDatabase

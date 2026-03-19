@@ -1,20 +1,24 @@
-package com.rhinepereira.versetrack.ui
+package com.rhinepereira.faithflow.ui
 
 import android.app.Application
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
-import com.rhinepereira.versetrack.data.*
+import com.rhinepereira.faithflow.data.*
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
-import io.github.jan.supabase.gotrue.gotrue
-import io.github.jan.supabase.gotrue.SessionStatus
 import java.util.*
 
+/*
 class DailyViewModel(application: Application) : AndroidViewModel(application) {
     private val repository: VerseRepository
     private val dao: VerseDao
+    
+    private val authRepository = AuthRepository()
     
     val todayRecord: StateFlow<DailyRecord?>
     val allDailyRecords: StateFlow<List<DailyRecord>>
@@ -27,12 +31,12 @@ class DailyViewModel(application: Application) : AndroidViewModel(application) {
         val startOfToday = getStartOfDay(System.currentTimeMillis())
         val endOfToday = startOfToday + (24 * 60 * 60 * 1000)
         
-        val sessionStatus = SupabaseConfig.client.gotrue.sessionStatus
+        val authStatus = authRepository.authStatusFlow()
         
-        todayRecord = sessionStatus.flatMapLatest { status ->
+        todayRecord = authStatus.flatMapLatest { status ->
             when (status) {
-                is SessionStatus.Authenticated -> {
-                    dao.getRecordForDate(status.session.user?.id ?: "", startOfToday, endOfToday)
+                is AuthStatus.Authenticated -> {
+                    dao.getRecordForDate(status.userId, startOfToday, endOfToday)
                 }
                 else -> flowOf(null)
             }
@@ -42,10 +46,10 @@ class DailyViewModel(application: Application) : AndroidViewModel(application) {
             initialValue = null
         )
 
-        allDailyRecords = sessionStatus.flatMapLatest { status ->
+        allDailyRecords = authStatus.flatMapLatest { status ->
             when (status) {
-                is SessionStatus.Authenticated -> {
-                    dao.getAllDailyRecords(status.session.user?.id ?: "")
+                is AuthStatus.Authenticated -> {
+                    dao.getAllDailyRecords(status.userId)
                 }
                 else -> flowOf(emptyList())
             }
@@ -55,12 +59,13 @@ class DailyViewModel(application: Application) : AndroidViewModel(application) {
             initialValue = emptyList()
         )
         
-        fetchLatestData()
-    }
-
-    private fun fetchLatestData() {
+        // Initial fetch from cloud after authentication
         viewModelScope.launch {
-            repository.fetchFromSupabase()
+            authStatus.collect { status ->
+                if (status is AuthStatus.Authenticated) {
+                    repository.fetchFromSupabase(status.userId)
+                }
+            }
         }
     }
 
@@ -85,7 +90,7 @@ class DailyViewModel(application: Application) : AndroidViewModel(application) {
         viewModelScope.launch {
             val startOfToday = getStartOfDay(System.currentTimeMillis())
             val endOfToday = startOfToday + (24 * 60 * 60 * 1000)
-            val userId = SupabaseConfig.client.gotrue.currentUserOrNull()?.id ?: ""
+            val userId = authRepository.currentUserId ?: ""
             val existing = dao.getRecordForDateSync(userId, startOfToday, endOfToday) ?: DailyRecord(date = startOfToday, userId = userId)
             
             val updated = existing.copy(
@@ -103,3 +108,4 @@ class DailyViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 }
+*/

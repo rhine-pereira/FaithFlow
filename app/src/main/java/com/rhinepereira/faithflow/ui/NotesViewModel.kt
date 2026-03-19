@@ -1,55 +1,54 @@
-package com.rhinepereira.versetrack.ui
+package com.rhinepereira.faithflow.ui
 
 import android.app.Application
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
-import com.rhinepereira.versetrack.data.*
+import com.rhinepereira.faithflow.data.*
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flowOf
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.stateIn
-import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.launch
-import io.github.jan.supabase.gotrue.gotrue
-import io.github.jan.supabase.gotrue.SessionStatus
 
 class NotesViewModel(application: Application) : AndroidViewModel(application) {
     private val repository: PersonalNoteRepository
+    private val verseRepository: VerseRepository
     private val dao: VerseDao
 
+    private val authRepository = AuthRepository()
+    
     val categories: StateFlow<List<PersonalNoteCategory>>
 
     init {
         val database = AppDatabase.getDatabase(application)
         dao = database.verseDao()
         repository = PersonalNoteRepository(application, dao)
+        verseRepository = VerseRepository(application, dao)
 
-        categories = SupabaseConfig.client.gotrue.sessionStatus
-            .flatMapLatest { status ->
-                when (status) {
-                    is SessionStatus.Authenticated -> {
-                        repository.getAllCategories(status.session.user?.id ?: "")
-                    }
-                    else -> flowOf(emptyList())
+        val authStatus = authRepository.authStatusFlow()
+
+        categories = authStatus.flatMapLatest { status ->
+            when (status) {
+                is AuthStatus.Authenticated -> {
+                    repository.getAllCategories(status.userId)
                 }
+                else -> flowOf(emptyList())
             }
-            .stateIn(
-                scope = viewModelScope,
-                started = SharingStarted.WhileSubscribed(5000),
-                initialValue = emptyList()
-            )
+        }.stateIn(
+            scope = viewModelScope,
+            started = SharingStarted.WhileSubscribed(5000),
+            initialValue = emptyList()
+        )
 
-        // Seed predefined categories for the authenticated user if empty
+        // Fetch latest cloud data after authentication.
         viewModelScope.launch {
-            SupabaseConfig.client.gotrue.sessionStatus.collect { status ->
-                if (status is SessionStatus.Authenticated) {
-                    val userId = status.session.user?.id ?: ""
-                    repository.getAllCategories(userId).first().let { current ->
-                        if (current.isEmpty()) {
-                            repository.insertCategory(PersonalNoteCategory(name = "CYP Talks", userId = userId))
-                            repository.insertCategory(PersonalNoteCategory(name = "CGS Talks", userId = userId))
-                            repository.insertCategory(PersonalNoteCategory(name = "Prophecies", userId = userId))
-                        }
-                    }
+            authStatus.collect { status ->
+                if (status is AuthStatus.Authenticated) {
+                    val userId = status.userId
+                    verseRepository.fetchFromSupabase(userId)
                 }
             }
         }
@@ -82,6 +81,47 @@ class NotesViewModel(application: Application) : AndroidViewModel(application) {
     fun deleteNote(note: PersonalNote) {
         viewModelScope.launch {
             repository.deleteNote(note)
+        }
+    }
+
+    fun deleteCategory(category: PersonalNoteCategory) {
+        viewModelScope.launch {
+            repository.deleteCategory(category)
+        }
+    }
+
+    fun moveCategory(categories: List<PersonalNoteCategory>, fromIndex: Int, toIndex: Int) {
+        if (fromIndex !in categories.indices || toIndex !in categories.indices || fromIndex == toIndex) {
+            return
+        }
+
+        viewModelScope.launch {
+            val reordered = categories.toMutableList().apply {
+                val moved = removeAt(fromIndex)
+                add(toIndex, moved)
+            }
+            repository.reorderCategories(reordered)
+        }
+    }
+
+    fun reorderCategories(categories: List<PersonalNoteCategory>) {
+        viewModelScope.launch {
+            repository.reorderCategories(categories)
+        }
+    }
+
+    fun syncFromCloud() {
+        viewModelScope.launch {
+            val userId = try {
+                authRepository.authStatusFlow().first()
+                when (val status = authRepository.authStatusFlow().first()) {
+                    is AuthStatus.Authenticated -> status.userId
+                    else -> return@launch
+                }
+            } catch (e: Exception) {
+                return@launch
+            }
+            repository.syncFromCloud(userId)
         }
     }
 }

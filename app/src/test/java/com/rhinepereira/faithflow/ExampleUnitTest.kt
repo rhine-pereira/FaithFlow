@@ -1,4 +1,4 @@
-package com.rhinepereira.versetrack
+package com.rhinepereira.faithflow
 
 import org.junit.Test
 

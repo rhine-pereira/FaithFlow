@@ -1,4 +1,4 @@
-package com.rhinepereira.versetrack.ui
+package com.rhinepereira.faithflow.ui
 
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.clickable
@@ -26,11 +26,11 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.DialogProperties
 import androidx.compose.ui.window.PopupProperties
 import androidx.lifecycle.viewmodel.compose.viewModel
-import com.rhinepereira.versetrack.data.BibleData
-import com.rhinepereira.versetrack.data.BibleDatabaseHelper
-import com.rhinepereira.versetrack.data.Note
-import com.rhinepereira.versetrack.data.NoteWithVerses
-import com.rhinepereira.versetrack.data.Verse
+import com.rhinepereira.faithflow.data.BibleData
+import com.rhinepereira.faithflow.data.BibleDatabaseHelper
+import com.rhinepereira.faithflow.data.Note
+import com.rhinepereira.faithflow.data.NoteWithVerses
+import com.rhinepereira.faithflow.data.Verse
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -49,7 +49,7 @@ fun VerseScreen(
     var noteToDelete by remember { mutableStateOf<Note?>(null) }
     var verseToDelete by remember { mutableStateOf<Verse?>(null) }
 
-    val notesWithVerses by viewModel.allNotesWithVerses.collectAsState()
+    val notesWithVerses by viewModel.allNotesWithVerses.collectAsState(initial = emptyList<NoteWithVerses>())
 
     LaunchedEffect(sharedText) {
         if (sharedText != null) {
@@ -59,16 +59,16 @@ fun VerseScreen(
 
     Scaffold(
         topBar = {
-            TopAppBar(
-                title = { Text(selectedNoteWithVerses?.note?.theme ?: "Verse Track") },
-                navigationIcon = {
-                    if (selectedNoteWithVerses != null) {
+            if (selectedNoteWithVerses != null) {
+                TopAppBar(
+                    title = { Text(selectedNoteWithVerses?.note?.theme ?: "") },
+                    navigationIcon = {
                         IconButton(onClick = { selectedNoteWithVerses = null }) {
                             Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
                         }
                     }
-                }
-            )
+                )
+            }
         },
         floatingActionButton = {
             FloatingActionButton(onClick = {
@@ -104,7 +104,7 @@ fun VerseScreen(
                 }
             } else {
                 // Verses List for selected Theme
-                val verses by viewModel.getVersesForNote(selectedNoteWithVerses!!.note.id).collectAsState(initial = emptyList())
+                val verses by viewModel.getVersesForNote(selectedNoteWithVerses!!.note.id).collectAsState(initial = emptyList<Verse>())
                 BackHandler { selectedNoteWithVerses = null }
 
                 LazyColumn(

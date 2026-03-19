@@ -1,9 +1,9 @@
-package com.rhinepereira.versetrack.ui
+package com.rhinepereira.faithflow.ui
 
 import android.app.Application
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
-import com.rhinepereira.versetrack.data.*
+import com.rhinepereira.faithflow.data.*
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -11,22 +11,22 @@ import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
-import io.github.jan.supabase.gotrue.gotrue
-import io.github.jan.supabase.gotrue.SessionStatus
+import kotlinx.coroutines.launch
 
 class VerseViewModel(application: Application) : AndroidViewModel(application) {
     private val repository: VerseRepository
+    private val authRepository = AuthRepository()
     val allNotesWithVerses: StateFlow<List<NoteWithVerses>>
 
     init {
         val verseDao = AppDatabase.getDatabase(application).verseDao()
         repository = VerseRepository(application, verseDao)
         
-        allNotesWithVerses = SupabaseConfig.client.gotrue.sessionStatus
+        allNotesWithVerses = authRepository.authStatusFlow()
             .flatMapLatest { status ->
                 when (status) {
-                    is SessionStatus.Authenticated -> {
-                        repository.getAllNotesWithVerses(status.session.user?.id ?: "")
+                    is AuthStatus.Authenticated -> {
+                        repository.getAllNotesWithVerses(status.userId)
                     }
                     else -> flowOf(emptyList())
                 }
@@ -37,13 +37,13 @@ class VerseViewModel(application: Application) : AndroidViewModel(application) {
                 initialValue = emptyList()
             )
         
-        // Initial fetch from cloud to populate local database if empty
-        fetchCloudData()
-    }
-
-    private fun fetchCloudData() {
+        // Initial fetch from cloud after authentication
         viewModelScope.launch {
-            repository.fetchFromSupabase()
+            authRepository.authStatusFlow().collect { status ->
+                if (status is AuthStatus.Authenticated) {
+                    repository.fetchFromSupabase(status.userId)
+                }
+            }
         }
     }
 

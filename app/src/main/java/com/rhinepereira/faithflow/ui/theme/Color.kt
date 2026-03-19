@@ -1,4 +1,4 @@
-package com.rhinepereira.versetrack.ui.theme
+package com.rhinepereira.faithflow.ui.theme
 
 import androidx.compose.ui.graphics.Color
 
