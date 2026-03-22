@@ -1,6 +1,6 @@
-# Verse Track
+# FaithFlow
 
-Verse Track is a modern, local-first Android application designed for organizing and storing Bible verses by theme. It features seamless synchronization with Supabase and robust offline support.
+FaithFlow is a modern, local-first Android application designed for organizing and storing Bible verses by theme. It features seamless synchronization with Supabase and robust offline support.
 
 ## 🚀 Features
 
@@ -46,9 +46,14 @@ Verse Track is a modern, local-first Android application designed for organizing
 
 ## 📦 Setup & Installation
 
-1. **Supabase Configuration**:
-    - Update `SupabaseConfig.kt` with your `URL` and `ANON_KEY`.
-    - Set up the `notes` and `verses` tables in your Supabase project (SQL scripts available in the project documentation).
+1. **Supabase & Google Auth Configuration**:
+    - Create a `local.properties` file in the root project directory and add your credentials:
+      ```properties
+      SUPABASE_URL=your_supabase_url
+      SUPABASE_KEY=your_supabase_anon_key
+      GOOGLE_CLIENT_ID=your_google_client_id
+      ```
+    - Set up the required tables in your Supabase project (SQL scripts available in the project documentation).
 2. **Environment**:
     - Minimum SDK: 24
     - Target SDK: 36
