@@ -1,9 +1,13 @@
 package com.rhinepereira.faithflow.ui
 
+import android.content.Context
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.rhinepereira.faithflow.data.AppDatabase
 import com.rhinepereira.faithflow.data.AuthRepository
 import com.rhinepereira.faithflow.data.AuthStatus
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -45,6 +49,25 @@ class AuthViewModel : ViewModel() {
                 authRepository.signInWithGoogle(idToken)
                 onResult(true)
             } catch (e: Exception) {
+                onResult(false)
+            }
+        }
+    }
+
+    fun deleteAccount(context: Context, onResult: (Boolean) -> Unit) {
+        viewModelScope.launch {
+            try {
+                // Clear local database
+                withContext(Dispatchers.IO) {
+                    AppDatabase.getDatabase(context).clearAllTables()
+                }
+                
+                // Erase remote data and Firebase Auth
+                authRepository.deleteAccount()
+                
+                onResult(true)
+            } catch (e: Exception) {
+                e.printStackTrace()
                 onResult(false)
             }
         }

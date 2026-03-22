@@ -50,7 +50,14 @@ class MainActivity : ComponentActivity() {
                         MainContainer(
                             sharedText = sharedText,
                             onSharedTextConsumed = { sharedText = null },
-                            onSignOut = { authViewModel.signOut() }
+                            onSignOut = { authViewModel.signOut() },
+                            onDeleteAccount = {
+                                authViewModel.deleteAccount(this@MainActivity) { success ->
+                                    if (success) {
+                                        // auth status will automatically switch to SignedOut via listener
+                                    }
+                                }
+                            }
                         )
                     }
                 }

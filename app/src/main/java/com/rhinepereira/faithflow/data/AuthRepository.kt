@@ -8,6 +8,9 @@ import kotlinx.coroutines.channels.awaitClose
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.callbackFlow
 import kotlinx.coroutines.flow.onStart
+import io.github.jan.supabase.postgrest.postgrest
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 
 sealed class AuthStatus {
     object Loading : AuthStatus()
@@ -45,5 +48,24 @@ class AuthRepository {
     suspend fun signInWithGoogle(idToken: String) {
         val credential = GoogleAuthProvider.getCredential(idToken, null)
         auth.signInWithCredential(credential).await()
+    }
+
+    suspend fun deleteAccount() = withContext(Dispatchers.IO) {
+        val user = auth.currentUser ?: throw Exception("No authenticated user")
+        val userId = user.uid
+
+        // Clear user data from Supabase
+        try {
+            SupabaseConfig.client.postgrest["notes"].delete { filter { eq("user_id", userId) } }
+            SupabaseConfig.client.postgrest["verses"].delete { filter { eq("user_id", userId) } }
+            SupabaseConfig.client.postgrest["personal_notes"].delete { filter { eq("user_id", userId) } }
+            SupabaseConfig.client.postgrest["personal_note_categories"].delete { filter { eq("user_id", userId) } }
+            SupabaseConfig.client.postgrest["daily_records"].delete { filter { eq("user_id", userId) } }
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
+
+        // Delete the Firebase Auth User
+        user.delete().await()
     }
 }

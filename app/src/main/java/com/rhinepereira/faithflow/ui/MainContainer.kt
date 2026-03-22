@@ -5,6 +5,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.List
 import androidx.compose.material.icons.filled.MoreVert
+import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.automirrored.filled.Logout
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -27,19 +28,43 @@ sealed class Screen(val route: String, val title: String, val icon: androidx.com
 fun MainContainer(
     sharedText: String? = null,
     onSharedTextConsumed: () -> Unit = {},
-    onSignOut: () -> Unit = {}
+    onSignOut: () -> Unit = {},
+    onDeleteAccount: () -> Unit = {}
 ) {
     val navController = rememberNavController()
     val items = listOf(Screen.Themes, Screen.PersonalNotes)
     var showSignOutDialog by remember { mutableStateOf(false) }
+    var showDeleteDialog by remember { mutableStateOf(false) }
+    var showMenu by remember { mutableStateOf(false) }
 
     Scaffold(
         topBar = {
             TopAppBar(
                 title = { Text("FaithFlow") },
                 actions = {
-                    IconButton(onClick = { showSignOutDialog = true }) {
-                        Icon(Icons.AutoMirrored.Filled.Logout, contentDescription = "Sign Out")
+                    IconButton(onClick = { showMenu = true }) {
+                        Icon(Icons.Default.MoreVert, contentDescription = "Menu")
+                    }
+                    DropdownMenu(
+                        expanded = showMenu,
+                        onDismissRequest = { showMenu = false }
+                    ) {
+                        DropdownMenuItem(
+                            text = { Text("Sign Out") },
+                            onClick = {
+                                showMenu = false
+                                showSignOutDialog = true
+                            },
+                            leadingIcon = { Icon(Icons.AutoMirrored.Filled.Logout, contentDescription = null) }
+                        )
+                        DropdownMenuItem(
+                            text = { Text("Delete Account", color = MaterialTheme.colorScheme.error) },
+                            onClick = {
+                                showMenu = false
+                                showDeleteDialog = true
+                            },
+                            leadingIcon = { Icon(Icons.Default.Delete, contentDescription = null, tint = MaterialTheme.colorScheme.error) }
+                        )
                     }
                 }
             )
@@ -104,6 +129,29 @@ fun MainContainer(
             },
             dismissButton = {
                 TextButton(onClick = { showSignOutDialog = false }) {
+                    Text("Cancel")
+                }
+            }
+        )
+    }
+
+    if (showDeleteDialog) {
+        AlertDialog(
+            onDismissRequest = { showDeleteDialog = false },
+            title = { Text("Delete Account") },
+            text = { Text("Are you sure you want to permanently delete your account? All your verses, notes, and themes will be erased.") },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        showDeleteDialog = false
+                        onDeleteAccount()
+                    }
+                ) {
+                    Text("Delete", color = MaterialTheme.colorScheme.error)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showDeleteDialog = false }) {
                     Text("Cancel")
                 }
             }
