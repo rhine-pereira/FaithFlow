@@ -11,6 +11,7 @@ import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -47,18 +48,48 @@ class MainActivity : ComponentActivity() {
                         LoginScreen(authViewModel)
                     }
                     is AuthState.SignedIn -> {
-                        MainContainer(
-                            sharedText = sharedText,
-                            onSharedTextConsumed = { sharedText = null },
-                            onSignOut = { authViewModel.signOut() },
-                            onDeleteAccount = {
-                                authViewModel.deleteAccount(this@MainActivity) { success ->
-                                    if (success) {
-                                        // auth status will automatically switch to SignedOut via listener
-                                    }
+                        val context = androidx.compose.ui.platform.LocalContext.current
+                        val prefs = remember { context.getSharedPreferences("faithflow_prefs", android.content.Context.MODE_PRIVATE) }
+                        
+                        // If onboarding is not complete, we start at ADD_THEME_FAB. Otherwise DONE.
+                        val isComplete = prefs.getBoolean("onboarding_complete", false)
+                        val tutorialState = remember { 
+                            com.rhinepereira.faithflow.ui.TutorialState(if (isComplete) com.rhinepereira.faithflow.ui.TutorialStep.DONE else com.rhinepereira.faithflow.ui.TutorialStep.ADD_THEME_FAB) 
+                        }
+
+                        androidx.compose.runtime.CompositionLocalProvider(
+                            com.rhinepereira.faithflow.ui.LocalTutorialState provides tutorialState
+                        ) {
+                            androidx.compose.runtime.LaunchedEffect(tutorialState.currentStep) {
+                                if (tutorialState.currentStep == com.rhinepereira.faithflow.ui.TutorialStep.DONE) {
+                                    prefs.edit().putBoolean("onboarding_complete", true).apply()
                                 }
                             }
-                        )
+
+                            Box(modifier = Modifier.fillMaxSize()) {
+                                MainContainer(
+                                    sharedText = sharedText,
+                                    onSharedTextConsumed = { sharedText = null },
+                                    onSignOut = { authViewModel.signOut() },
+                                    onDeleteAccount = {
+                                        authViewModel.deleteAccount(this@MainActivity) { success ->
+                                            if (success) {
+                                                // auth status will automatically switch to SignedOut via listener
+                                            }
+                                        }
+                                    }
+                                )
+
+                                if (tutorialState.isActive && tutorialState.currentStep != com.rhinepereira.faithflow.ui.TutorialStep.DONE) {
+                                    com.rhinepereira.faithflow.ui.TutorialOverlay(
+                                        state = tutorialState,
+                                        onFinished = {
+                                            // Handled by LaunchedEffect
+                                        }
+                                    )
+                                }
+                            }
+                        }
                     }
                 }
             }

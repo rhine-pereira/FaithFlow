@@ -86,6 +86,11 @@ fun MainContainer(
                                 launchSingleTop = true
                                 restoreState = true
                             }
+                        },
+                        modifier = if (screen == Screen.PersonalNotes) {
+                            Modifier.tutorialTarget(TutorialStep.NOTES_TAB)
+                        } else {
+                            Modifier
                         }
                     )
                 }

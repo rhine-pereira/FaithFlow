@@ -71,9 +71,12 @@ fun VerseScreen(
             }
         },
         floatingActionButton = {
-            FloatingActionButton(onClick = {
-                if (selectedNoteWithVerses == null) showAddNoteDialog = true else showAddVerseDialog = true
-            }) {
+            FloatingActionButton(
+                onClick = {
+                    if (selectedNoteWithVerses == null) showAddNoteDialog = true else showAddVerseDialog = true
+                },
+                modifier = Modifier.tutorialTarget(TutorialStep.ADD_THEME_FAB)
+            ) {
                 Icon(Icons.Default.Add, contentDescription = "Add")
             }
         }

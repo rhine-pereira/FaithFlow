@@ -109,27 +109,32 @@ fun NotesScreen(viewModel: NotesViewModel = viewModel()) {
     }
 
     Column(modifier = Modifier.fillMaxSize()) {
-        if (categories.isNotEmpty()) {
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 16.dp, vertical = 8.dp),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Spacer(modifier = Modifier.width(1.dp))
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 16.dp, vertical = 8.dp),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Spacer(modifier = Modifier.width(1.dp))
 
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    TextButton(onClick = { showAddCategoryDialog = true }) {
-                        Text("Add Category")
-                    }
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                TextButton(
+                    onClick = { showAddCategoryDialog = true },
+                    modifier = Modifier.tutorialTarget(TutorialStep.ADD_CATEGORY_BTN)
+                ) {
+                    Text("Add Category")
+                }
 
+                if (categories.isNotEmpty()) {
                     TextButton(onClick = { showReorderDialog = true }) {
                         Text("Reorder")
                     }
                 }
             }
+        }
 
+        if (categories.isNotEmpty()) {
             ScrollableTabRow(
                 selectedTabIndex = pagerState.currentPage,
                 edgePadding = 16.dp,
@@ -152,10 +157,16 @@ fun NotesScreen(viewModel: NotesViewModel = viewModel()) {
         Box(modifier = Modifier
             .weight(1f)
             .pullRefresh(pullRefreshState)) {
-            HorizontalPager(
-                state = pagerState,
-                modifier = Modifier.fillMaxSize()
-            ) { pageIndex: Int ->
+            
+            if (categories.isEmpty()) {
+                Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                    Text("No categories yet. Add one to start organizing your notes!", color = MaterialTheme.colorScheme.outline)
+                }
+            } else {
+                HorizontalPager(
+                    state = pagerState,
+                    modifier = Modifier.fillMaxSize()
+                ) { pageIndex: Int ->
                 val category = categories.getOrNull(pageIndex) ?: return@HorizontalPager
                 val notes by viewModel.getNotesForCategory(category.id).collectAsState(initial = emptyList<PersonalNote>())
                 
@@ -181,29 +192,33 @@ fun NotesScreen(viewModel: NotesViewModel = viewModel()) {
                     }
                 }
             }
+        }
 
-            FloatingActionButton(
-                onClick = { 
-                    val calendar = Calendar.getInstance()
-                    calendar.set(Calendar.HOUR_OF_DAY, 0)
-                    calendar.set(Calendar.MINUTE, 0)
-                    calendar.set(Calendar.SECOND, 0)
-                    calendar.set(Calendar.MILLISECOND, 0)
-                    
-                    val currentCategoryId = categories.getOrNull(pagerState.currentPage)?.id ?: ""
-                    
-                    noteToEdit = PersonalNote(
-                        categoryId = currentCategoryId, 
-                        title = "", 
-                        content = "",
-                        date = calendar.timeInMillis
-                    ) 
-                },
-                modifier = Modifier
-                    .align(Alignment.BottomEnd)
-                    .padding(16.dp)
-            ) {
-                Icon(Icons.Default.Add, contentDescription = "Add Note")
+            if (categories.isNotEmpty()) {
+                FloatingActionButton(
+                    onClick = { 
+                        val calendar = Calendar.getInstance()
+                        calendar.set(Calendar.HOUR_OF_DAY, 0)
+                        calendar.set(Calendar.MINUTE, 0)
+                        calendar.set(Calendar.SECOND, 0)
+                        calendar.set(Calendar.MILLISECOND, 0)
+                        
+                        val currentCategoryId = categories.getOrNull(pagerState.currentPage)?.id ?: ""
+                        
+                        noteToEdit = PersonalNote(
+                            categoryId = currentCategoryId, 
+                            title = "", 
+                            content = "",
+                            date = calendar.timeInMillis
+                        ) 
+                    },
+                    modifier = Modifier
+                        .align(Alignment.BottomEnd)
+                        .padding(16.dp)
+                        .tutorialTarget(TutorialStep.ADD_NOTE_FAB)
+                ) {
+                    Icon(Icons.Default.Add, contentDescription = "Add Note")
+                }
             }
             
             PullRefreshIndicator(
@@ -558,7 +573,8 @@ fun FullScreenNoteEditor(
                 placeholder = { Text("Note") },
                 modifier = Modifier
                     .fillMaxWidth()
-                    .weight(1f),
+                    .weight(1f)
+                    .tutorialTarget(TutorialStep.RICH_TEXT_EDITOR),
                 colors = TextFieldDefaults.colors(
                     focusedContainerColor = Color.Transparent,
                     unfocusedContainerColor = Color.Transparent,
@@ -800,6 +816,11 @@ fun ReorderCategoriesDialog(
     val editableCategories = remember { mutableStateListOf<PersonalNoteCategory>().apply { addAll(categories) } }
     var draggedCategoryId by remember { mutableStateOf<String?>(null) }
     var dragOffset by remember { mutableStateOf(0f) }
+
+    LaunchedEffect(categories) {
+        val currentIds = categories.map { it.id }.toSet()
+        editableCategories.removeAll { it.id !in currentIds }
+    }
 
     Dialog(
         onDismissRequest = onDismiss,
