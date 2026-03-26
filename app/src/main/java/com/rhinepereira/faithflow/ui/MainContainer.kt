@@ -10,6 +10,8 @@ import androidx.compose.material.icons.automirrored.filled.Logout
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.dp
 import androidx.navigation.NavDestination.Companion.hierarchy
 import androidx.navigation.NavGraph.Companion.findStartDestination
 import androidx.navigation.compose.NavHost
@@ -40,7 +42,13 @@ fun MainContainer(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("FaithFlow") },
+                title = { 
+                    Text(
+                        "FaithFlow", 
+                        style = MaterialTheme.typography.headlineMedium,
+                        color = MaterialTheme.colorScheme.primary
+                    ) 
+                },
                 actions = {
                     IconButton(onClick = { showMenu = true }) {
                         Icon(Icons.Default.MoreVert, contentDescription = "Menu")
@@ -70,14 +78,30 @@ fun MainContainer(
             )
         },
         bottomBar = {
-            NavigationBar {
+            NavigationBar(
+                containerColor = MaterialTheme.colorScheme.surface,
+                tonalElevation = 8.dp
+            ) {
                 val navBackStackEntry by navController.currentBackStackEntryAsState()
                 val currentDestination = navBackStackEntry?.destination
                 items.forEach { screen ->
+                    val selected = currentDestination?.hierarchy?.any { it.route == screen.route } == true
                     NavigationBarItem(
-                        icon = { Icon(screen.icon, contentDescription = null) },
-                        label = { Text(screen.title) },
-                        selected = currentDestination?.hierarchy?.any { it.route == screen.route } == true,
+                        icon = { 
+                            Icon(
+                                screen.icon, 
+                                contentDescription = null,
+                                tint = if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outline
+                            ) 
+                        },
+                        label = { 
+                            Text(
+                                screen.title,
+                                color = if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outline,
+                                fontWeight = if (selected) FontWeight.Bold else FontWeight.Normal
+                            ) 
+                        },
+                        selected = selected,
                         onClick = {
                             navController.navigate(screen.route) {
                                 popUpTo(navController.graph.findStartDestination().id) {
@@ -87,11 +111,13 @@ fun MainContainer(
                                 restoreState = true
                             }
                         },
-                        modifier = if (screen == Screen.Themes) {
-                            Modifier.tutorialTarget(TutorialStep.ADD_THEME_FAB)
-                        } else {
-                            Modifier
-                        }
+                        colors = NavigationBarItemDefaults.colors(
+                            selectedIconColor = MaterialTheme.colorScheme.primary,
+                            selectedTextColor = MaterialTheme.colorScheme.primary,
+                            indicatorColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.3f),
+                            unselectedIconColor = MaterialTheme.colorScheme.outline,
+                            unselectedTextColor = MaterialTheme.colorScheme.outline
+                        )
                     )
                 }
             }
@@ -120,21 +146,22 @@ fun MainContainer(
     if (showSignOutDialog) {
         AlertDialog(
             onDismissRequest = { showSignOutDialog = false },
-            title = { Text("Sign Out") },
+            title = { Text("Sign Out", style = MaterialTheme.typography.headlineSmall, color = MaterialTheme.colorScheme.primary) },
             text = { Text("Are you sure you want to sign out?") },
             confirmButton = {
-                TextButton(
+                Button(
                     onClick = {
                         showSignOutDialog = false
                         onSignOut()
-                    }
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary)
                 ) {
-                    Text("Sign Out")
+                    Text("Sign Out", fontWeight = FontWeight.Bold)
                 }
             },
             dismissButton = {
                 TextButton(onClick = { showSignOutDialog = false }) {
-                    Text("Cancel")
+                    Text("Cancel", color = MaterialTheme.colorScheme.outline)
                 }
             }
         )
@@ -143,21 +170,22 @@ fun MainContainer(
     if (showDeleteDialog) {
         AlertDialog(
             onDismissRequest = { showDeleteDialog = false },
-            title = { Text("Delete Account") },
+            title = { Text("Delete Account", style = MaterialTheme.typography.headlineSmall, color = MaterialTheme.colorScheme.error) },
             text = { Text("Are you sure you want to permanently delete your account? All your verses, notes, and themes will be erased.") },
             confirmButton = {
-                TextButton(
+                Button(
                     onClick = {
                         showDeleteDialog = false
                         onDeleteAccount()
-                    }
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error)
                 ) {
-                    Text("Delete", color = MaterialTheme.colorScheme.error)
+                    Text("Delete", fontWeight = FontWeight.Bold)
                 }
             },
             dismissButton = {
                 TextButton(onClick = { showDeleteDialog = false }) {
-                    Text("Cancel")
+                    Text("Cancel", color = MaterialTheme.colorScheme.outline)
                 }
             }
         )

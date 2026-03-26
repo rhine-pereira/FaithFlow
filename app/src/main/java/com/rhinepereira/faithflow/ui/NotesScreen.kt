@@ -6,6 +6,7 @@ import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.gestures.detectDragGesturesAfterLongPress
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.clickable
@@ -33,6 +34,7 @@ import androidx.compose.material.icons.filled.FormatBold
 import androidx.compose.material.icons.filled.FormatItalic
 import androidx.compose.material.icons.filled.FormatListNumbered
 import androidx.compose.material3.*
+import androidx.compose.material3.TabRowDefaults.tabIndicatorOffset
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -115,22 +117,17 @@ fun NotesScreen(viewModel: NotesViewModel = viewModel()) {
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(horizontal = 16.dp, vertical = 8.dp),
-            horizontalArrangement = Arrangement.SpaceBetween,
+            horizontalArrangement = Arrangement.End,
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Spacer(modifier = Modifier.width(1.dp))
-
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                TextButton(
-                    onClick = { showAddCategoryDialog = true },
-                    modifier = Modifier.tutorialTarget(TutorialStep.ADD_CATEGORY_BTN)
-                ) {
-                    Text("Add Category")
+                IconButton(onClick = { showAddCategoryDialog = true }) {
+                    Icon(Icons.Default.Add, contentDescription = "Add Category", tint = MaterialTheme.colorScheme.primary)
                 }
 
                 if (categories.isNotEmpty()) {
-                    TextButton(onClick = { showReorderDialog = true }) {
-                        Text("Edit")
+                    IconButton(onClick = { showReorderDialog = true }) {
+                        Icon(Icons.Default.Edit, contentDescription = "Edit Categories", tint = MaterialTheme.colorScheme.outline)
                     }
                 }
             }
@@ -140,7 +137,16 @@ fun NotesScreen(viewModel: NotesViewModel = viewModel()) {
             ScrollableTabRow(
                 selectedTabIndex = pagerState.currentPage,
                 edgePadding = 16.dp,
-                divider = {}
+                divider = {},
+                containerColor = Color.Transparent,
+                indicator = { tabPositions ->
+                    if (pagerState.currentPage < tabPositions.size) {
+                        TabRowDefaults.SecondaryIndicator(
+                            Modifier.tabIndicatorOffset(tabPositions[pagerState.currentPage]),
+                            color = MaterialTheme.colorScheme.primary
+                        )
+                    }
+                }
             ) {
                 categories.forEachIndexed { index: Int, category: PersonalNoteCategory ->
                     Tab(
@@ -150,7 +156,12 @@ fun NotesScreen(viewModel: NotesViewModel = viewModel()) {
                                 pagerState.animateScrollToPage(index)
                             }
                         },
-                        text = { Text(category.name) }
+                        text = { 
+                            Text(
+                                category.name,
+                                color = if (pagerState.currentPage == index) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outline
+                            ) 
+                        }
                     )
                 }
             }
@@ -244,22 +255,22 @@ fun NotesScreen(viewModel: NotesViewModel = viewModel()) {
     noteToDelete?.let { note ->
         AlertDialog(
             onDismissRequest = { noteToDelete = null },
-            title = { Text("Delete Note") },
+            title = { Text("Delete Note", style = MaterialTheme.typography.headlineSmall, color = MaterialTheme.colorScheme.error) },
             text = { Text("Are you sure you want to delete this note?") },
             confirmButton = {
-                TextButton(
+                Button(
                     onClick = {
                         viewModel.deleteNote(note)
                         noteToDelete = null
                     },
-                    colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.error)
+                    colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error)
                 ) {
-                    Text("Delete")
+                    Text("Delete", fontWeight = FontWeight.Bold)
                 }
             },
             dismissButton = {
                 TextButton(onClick = { noteToDelete = null }) {
-                    Text("Cancel")
+                    Text("Cancel", color = MaterialTheme.colorScheme.outline)
                 }
             }
         )
@@ -268,22 +279,22 @@ fun NotesScreen(viewModel: NotesViewModel = viewModel()) {
     categoryToDelete?.let { category ->
         AlertDialog(
             onDismissRequest = { categoryToDelete = null },
-            title = { Text("Delete Category") },
+            title = { Text("Delete Category", style = MaterialTheme.typography.headlineSmall, color = MaterialTheme.colorScheme.error) },
             text = { Text("Are you sure you want to delete \"${category.name}\" and all its notes?") },
             confirmButton = {
-                TextButton(
+                Button(
                     onClick = {
                         viewModel.deleteCategory(category)
                         categoryToDelete = null
                     },
-                    colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.error)
+                    colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error)
                 ) {
-                    Text("Delete")
+                    Text("Delete", fontWeight = FontWeight.Bold)
                 }
             },
             dismissButton = {
                 TextButton(onClick = { categoryToDelete = null }) {
-                    Text("Cancel")
+                    Text("Cancel", color = MaterialTheme.colorScheme.outline)
                 }
             }
         )
@@ -327,10 +338,18 @@ fun KeepNoteItem(note: PersonalNote, onClick: () -> Unit, onDelete: () -> Unit) 
     Card(
         modifier = Modifier
             .fillMaxWidth()
-            .clickable { onClick() },
-        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+            .clickable { onClick() }
+            .graphicsLayer {
+                shape = RoundedCornerShape(12.dp)
+                clip = true
+            },
+        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.surface
+        ),
+        border = BorderStroke(0.5.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.5f))
     ) {
-        Column(modifier = Modifier.padding(12.dp)) {
+        Column(modifier = Modifier.padding(16.dp)) {
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
@@ -341,30 +360,37 @@ fun KeepNoteItem(note: PersonalNote, onClick: () -> Unit, onDelete: () -> Unit) 
                         text = note.title,
                         style = MaterialTheme.typography.titleMedium,
                         fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.primary,
                         maxLines = 2,
                         overflow = TextOverflow.Ellipsis,
                         modifier = Modifier.weight(1f)
                     )
                 }
                 IconButton(onClick = onDelete, modifier = Modifier.size(24.dp)) {
-                    Icon(Icons.Default.Delete, contentDescription = "Delete", modifier = Modifier.size(16.dp))
+                    Icon(
+                        Icons.Default.Delete, 
+                        contentDescription = "Delete", 
+                        tint = MaterialTheme.colorScheme.outline,
+                        modifier = Modifier.size(16.dp)
+                    )
                 }
             }
-            if (note.title.isNotBlank()) Spacer(modifier = Modifier.height(4.dp))
+            if (note.title.isNotBlank()) Spacer(modifier = Modifier.height(8.dp))
             
             Text(
                 text = parseMarkdown(note.content, hideMarkers = true, highlightColor = previewHighlight),
                 style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurface,
                 maxLines = 8,
                 overflow = TextOverflow.Ellipsis
             )
             
-            Spacer(modifier = Modifier.height(8.dp))
+            Spacer(modifier = Modifier.height(12.dp))
             val df = SimpleDateFormat("dd MMM", Locale.getDefault())
             Text(
                 text = df.format(Date(note.date)),
                 style = MaterialTheme.typography.labelSmall,
-                color = MaterialTheme.colorScheme.outline
+                color = MaterialTheme.colorScheme.primary.copy(alpha = 0.7f)
             )
         }
     }
@@ -802,20 +828,32 @@ fun AddCategoryDialog(onDismiss: () -> Unit, onConfirm: (String) -> Unit) {
     var name by remember { mutableStateOf("") }
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("New Category") },
+        title = { Text("New Category", style = MaterialTheme.typography.headlineSmall, color = MaterialTheme.colorScheme.primary) },
         text = {
-            TextField(
+            OutlinedTextField(
                 value = name,
                 onValueChange = { name = it },
                 label = { Text("Category Name") },
-                keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Sentences)
+                modifier = Modifier.fillMaxWidth(),
+                keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Sentences),
+                colors = OutlinedTextFieldDefaults.colors(
+                    focusedBorderColor = MaterialTheme.colorScheme.primary,
+                    unfocusedBorderColor = MaterialTheme.colorScheme.outline
+                )
             )
         },
         confirmButton = {
-            Button(onClick = { if (name.isNotBlank()) onConfirm(name) }) { Text("Add") }
+            Button(
+                onClick = { if (name.isNotBlank()) onConfirm(name) },
+                colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary)
+            ) { 
+                Text("Add", fontWeight = FontWeight.Bold) 
+            }
         },
         dismissButton = {
-            TextButton(onClick = onDismiss) { Text("Cancel") }
+            TextButton(onClick = onDismiss) { 
+                Text("Cancel", color = MaterialTheme.colorScheme.outline) 
+            }
         }
     )
 }
@@ -825,21 +863,33 @@ fun RenameCategoryDialog(currentName: String, onDismiss: () -> Unit, onConfirm: 
     var name by remember { mutableStateOf(currentName) }
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("Rename Category") },
+        title = { Text("Rename Category", style = MaterialTheme.typography.headlineSmall, color = MaterialTheme.colorScheme.primary) },
         text = {
-            TextField(
+            OutlinedTextField(
                 value = name,
                 onValueChange = { name = it },
                 label = { Text("Category Name") },
+                modifier = Modifier.fillMaxWidth(),
                 keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Sentences),
-                singleLine = true
+                singleLine = true,
+                colors = OutlinedTextFieldDefaults.colors(
+                    focusedBorderColor = MaterialTheme.colorScheme.primary,
+                    unfocusedBorderColor = MaterialTheme.colorScheme.outline
+                )
             )
         },
         confirmButton = {
-            Button(onClick = { if (name.isNotBlank()) onConfirm(name) }) { Text("Rename") }
+            Button(
+                onClick = { if (name.isNotBlank()) onConfirm(name) },
+                colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary)
+            ) { 
+                Text("Rename", fontWeight = FontWeight.Bold) 
+            }
         },
         dismissButton = {
-            TextButton(onClick = onDismiss) { Text("Cancel") }
+            TextButton(onClick = onDismiss) { 
+                Text("Cancel", color = MaterialTheme.colorScheme.outline) 
+            }
         }
     )
 }
@@ -1026,11 +1076,14 @@ fun ReorderCategoriesDialog(
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     TextButton(onClick = onDismiss) {
-                        Text("Cancel")
+                        Text("Cancel", color = MaterialTheme.colorScheme.outline)
                     }
                     Spacer(modifier = Modifier.width(8.dp))
-                    Button(onClick = { onConfirm(editableCategories.toList()) }) {
-                        Text("Save")
+                    Button(
+                        onClick = { onConfirm(editableCategories.toList()) },
+                        colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary)
+                    ) {
+                        Text("Save", fontWeight = FontWeight.Bold)
                     }
                 }
             }
