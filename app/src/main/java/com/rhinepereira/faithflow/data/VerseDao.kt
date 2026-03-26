@@ -6,14 +6,17 @@ import kotlinx.coroutines.flow.Flow
 @Dao
 interface VerseDao {
     @Transaction
-    @Query("SELECT * FROM notes WHERE userId = :userId ORDER BY createdAt DESC")
+    @Query("SELECT * FROM notes WHERE userId = :userId AND isDeleted = 0 ORDER BY createdAt DESC")
     fun getNotesWithVerses(userId: String): Flow<List<NoteWithVerses>>
 
-    @Query("SELECT * FROM notes WHERE userId = :userId ORDER BY createdAt DESC")
+    @Query("SELECT * FROM notes WHERE userId = :userId AND isDeleted = 0 ORDER BY createdAt DESC")
     fun getAllNotes(userId: String): Flow<List<Note>>
 
-    @Query("SELECT * FROM verses WHERE noteId = :noteId ORDER BY createdAt DESC")
+    @Query("SELECT * FROM verses WHERE noteId = :noteId AND isDeleted = 0 ORDER BY createdAt DESC")
     fun getVersesForNote(noteId: String): Flow<List<Verse>>
+
+    @Query("SELECT * FROM verses WHERE noteId = :noteId AND isDeleted = 0")
+    suspend fun getVersesForNoteSync(noteId: String): List<Verse>
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertNote(note: Note)
@@ -39,6 +42,12 @@ interface VerseDao {
     @Query("SELECT * FROM notes WHERE isSynced = 0")
     suspend fun getUnsyncedNotes(): List<Note>
 
+    @Query("SELECT * FROM notes WHERE id = :id LIMIT 1")
+    suspend fun getNoteById(id: String): Note?
+
+    @Query("SELECT * FROM verses WHERE id = :id LIMIT 1")
+    suspend fun getVerseById(id: String): Verse?
+
     // Daily Records
     /*
     @Query("SELECT * FROM daily_records WHERE userId = :userId ORDER BY date DESC")
@@ -61,16 +70,16 @@ interface VerseDao {
     */
 
     // Personal Notes
-    @Query("SELECT * FROM personal_note_categories WHERE userId = :userId ORDER BY createdAt ASC")
+    @Query("SELECT * FROM personal_note_categories WHERE userId = :userId AND isDeleted = 0 ORDER BY createdAt ASC")
     fun getAllCategories(userId: String): Flow<List<PersonalNoteCategory>>
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertCategory(category: PersonalNoteCategory)
 
-    @Query("SELECT * FROM personal_notes WHERE categoryId = :categoryId ORDER BY date DESC")
+    @Query("SELECT * FROM personal_notes WHERE categoryId = :categoryId AND isDeleted = 0 ORDER BY date DESC")
     fun getNotesForCategory(categoryId: String): Flow<List<PersonalNote>>
 
-    @Query("SELECT * FROM personal_notes WHERE categoryId = :categoryId")
+    @Query("SELECT * FROM personal_notes WHERE categoryId = :categoryId AND isDeleted = 0")
     suspend fun getNotesForCategorySync(categoryId: String): List<PersonalNote>
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
@@ -81,6 +90,15 @@ interface VerseDao {
 
     @Delete
     suspend fun deletePersonalNote(note: PersonalNote)
+
+    @Query("SELECT * FROM personal_note_categories WHERE id = :id LIMIT 1")
+    suspend fun getCategoryById(id: String): PersonalNoteCategory?
+
+    @Query("SELECT * FROM personal_notes WHERE id = :id LIMIT 1")
+    suspend fun getPersonalNoteById(id: String): PersonalNote?
+
+    @Update
+    suspend fun updateCategory(category: PersonalNoteCategory)
 
     @Delete
     suspend fun deleteCategory(category: PersonalNoteCategory)

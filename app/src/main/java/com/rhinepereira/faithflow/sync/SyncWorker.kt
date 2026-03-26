@@ -27,38 +27,57 @@ class SyncWorker(
             // 1. Sync Notes (Themes)
             val unsyncedNotes = dao.getUnsyncedNotes()
             unsyncedNotes.forEach { note ->
-                SupabaseConfig.client.postgrest["notes"].upsert(note.copy(userId = userId))
-                dao.updateNote(note.copy(isSynced = true, userId = userId))
+                if (note.isDeleted) {
+                    SupabaseConfig.client.postgrest["notes"].delete {
+                        filter { eq("id", note.id) }
+                    }
+                    dao.deleteNote(note)
+                } else {
+                    SupabaseConfig.client.postgrest["notes"].upsert(note.copy(userId = userId))
+                    dao.updateNote(note.copy(isSynced = true, userId = userId))
+                }
             }
 
             // 2. Sync Verses
             val unsyncedVerses = dao.getUnsyncedVerses()
             unsyncedVerses.forEach { verse ->
-                SupabaseConfig.client.postgrest["verses"].upsert(verse.copy(userId = userId))
-                dao.updateVerse(verse.copy(isSynced = true, userId = userId))
+                if (verse.isDeleted) {
+                    SupabaseConfig.client.postgrest["verses"].delete {
+                        filter { eq("id", verse.id) }
+                    }
+                    dao.deleteVerse(verse)
+                } else {
+                    SupabaseConfig.client.postgrest["verses"].upsert(verse.copy(userId = userId))
+                    dao.updateVerse(verse.copy(isSynced = true, userId = userId))
+                }
             }
-
-            // 3. Sync Daily Records
-            /*
-            val unsyncedRecords = dao.getUnsyncedDailyRecords()
-            unsyncedRecords.forEach { record ->
-                SupabaseConfig.client.postgrest["daily_records"].upsert(record.copy(userId = userId))
-                dao.updateDailyRecord(record.copy(isSynced = true, userId = userId))
-            }
-            */
 
             // 4. Sync Personal Note Categories
             val unsyncedCategories = dao.getUnsyncedCategories()
             unsyncedCategories.forEach { category ->
-                SupabaseConfig.client.postgrest["personal_note_categories"].upsert(category.copy(userId = userId))
-                dao.insertCategory(category.copy(isSynced = true, userId = userId))
+                if (category.isDeleted) {
+                    SupabaseConfig.client.postgrest["personal_note_categories"].delete {
+                        filter { eq("id", category.id) }
+                    }
+                    dao.deleteCategory(category)
+                } else {
+                    SupabaseConfig.client.postgrest["personal_note_categories"].upsert(category.copy(userId = userId))
+                    dao.insertCategory(category.copy(isSynced = true, userId = userId))
+                }
             }
 
             // 5. Sync Personal Notes
             val unsyncedPersonalNotes = dao.getUnsyncedPersonalNotes()
             unsyncedPersonalNotes.forEach { note ->
-                SupabaseConfig.client.postgrest["personal_notes"].upsert(note.copy(userId = userId))
-                dao.insertPersonalNote(note.copy(isSynced = true, userId = userId))
+                if (note.isDeleted) {
+                    SupabaseConfig.client.postgrest["personal_notes"].delete {
+                        filter { eq("id", note.id) }
+                    }
+                    dao.deletePersonalNote(note)
+                } else {
+                    SupabaseConfig.client.postgrest["personal_notes"].upsert(note.copy(userId = userId))
+                    dao.insertPersonalNote(note.copy(isSynced = true, userId = userId))
+                }
             }
 
             Result.success()

@@ -19,7 +19,8 @@ data class Note(
     val userId: String = "",
     @SerialName("created_at")
     val createdAt: Long = System.currentTimeMillis(),
-    val isSynced: Boolean = false
+    val isSynced: Boolean = false,
+    val isDeleted: Boolean = false
 )
 
 @Serializable
@@ -45,7 +46,8 @@ data class Verse(
     val userId: String = "",
     @SerialName("created_at")
     val createdAt: Long = System.currentTimeMillis(),
-    val isSynced: Boolean = false
+    val isSynced: Boolean = false,
+    val isDeleted: Boolean = false
 )
 
 data class NoteWithVerses(

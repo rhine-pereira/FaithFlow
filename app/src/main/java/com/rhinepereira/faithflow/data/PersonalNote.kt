@@ -18,7 +18,8 @@ data class PersonalNoteCategory(
     @SerialName("created_at")
     val createdAt: Long = System.currentTimeMillis(),
     @SerialName("is_synced")
-    val isSynced: Boolean = false
+    val isSynced: Boolean = false,
+    val isDeleted: Boolean = false
 )
 
 @Serializable
@@ -39,5 +40,6 @@ data class PersonalNote(
     @SerialName("created_at")
     val createdAt: Long = System.currentTimeMillis(),
     @SerialName("is_synced")
-    val isSynced: Boolean = false
+    val isSynced: Boolean = false,
+    val isDeleted: Boolean = false
 )

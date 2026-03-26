@@ -28,6 +28,7 @@ import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.DragHandle
+import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.FormatBold
 import androidx.compose.material.icons.filled.FormatItalic
 import androidx.compose.material.icons.filled.FormatListNumbered
@@ -73,6 +74,7 @@ fun NotesScreen(viewModel: NotesViewModel = viewModel()) {
     var showAddCategoryDialog by remember { mutableStateOf(false) }
     var noteToDelete by remember { mutableStateOf<PersonalNote?>(null) }
     var categoryToDelete by remember { mutableStateOf<PersonalNoteCategory?>(null) }
+    var categoryToRename by remember { mutableStateOf<PersonalNoteCategory?>(null) }
     var showReorderDialog by remember { mutableStateOf(false) }
     var isRefreshing by remember { mutableStateOf(false) }
     val coroutineScope = rememberCoroutineScope()
@@ -128,7 +130,7 @@ fun NotesScreen(viewModel: NotesViewModel = viewModel()) {
 
                 if (categories.isNotEmpty()) {
                     TextButton(onClick = { showReorderDialog = true }) {
-                        Text("Reorder")
+                        Text("Edit")
                     }
                 }
             }
@@ -302,7 +304,19 @@ fun NotesScreen(viewModel: NotesViewModel = viewModel()) {
                     }
                 }
             },
-            onDelete = { category -> categoryToDelete = category }
+            onDelete = { category -> categoryToDelete = category },
+            onRename = { category -> categoryToRename = category }
+        )
+    }
+
+    categoryToRename?.let { category ->
+        RenameCategoryDialog(
+            currentName = category.name,
+            onDismiss = { categoryToRename = null },
+            onConfirm = { newName ->
+                viewModel.renameCategory(category, newName)
+                categoryToRename = null
+            }
         )
     }
 }
@@ -807,11 +821,36 @@ fun AddCategoryDialog(onDismiss: () -> Unit, onConfirm: (String) -> Unit) {
 }
 
 @Composable
+fun RenameCategoryDialog(currentName: String, onDismiss: () -> Unit, onConfirm: (String) -> Unit) {
+    var name by remember { mutableStateOf(currentName) }
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Rename Category") },
+        text = {
+            TextField(
+                value = name,
+                onValueChange = { name = it },
+                label = { Text("Category Name") },
+                keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Sentences),
+                singleLine = true
+            )
+        },
+        confirmButton = {
+            Button(onClick = { if (name.isNotBlank()) onConfirm(name) }) { Text("Rename") }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) { Text("Cancel") }
+        }
+    )
+}
+
+@Composable
 fun ReorderCategoriesDialog(
     categories: List<PersonalNoteCategory>,
     onDismiss: () -> Unit,
     onConfirm: (List<PersonalNoteCategory>) -> Unit,
-    onDelete: (PersonalNoteCategory) -> Unit
+    onDelete: (PersonalNoteCategory) -> Unit,
+    onRename: (PersonalNoteCategory) -> Unit
 ) {
     val editableCategories = remember { mutableStateListOf<PersonalNoteCategory>().apply { addAll(categories) } }
     var draggedCategoryId by remember { mutableStateOf<String?>(null) }
@@ -820,6 +859,13 @@ fun ReorderCategoriesDialog(
     LaunchedEffect(categories) {
         val currentIds = categories.map { it.id }.toSet()
         editableCategories.removeAll { it.id !in currentIds }
+        // Update names for existing categories while preserving order of items in editableCategories
+        categories.forEach { source ->
+            val index = editableCategories.indexOfFirst { it.id == source.id }
+            if (index != -1 && editableCategories[index].name != source.name) {
+                editableCategories[index] = editableCategories[index].copy(name = source.name)
+            }
+        }
     }
 
     Dialog(
@@ -945,6 +991,17 @@ fun ReorderCategoriesDialog(
                                     fontWeight = if (isDragging) FontWeight.Bold else FontWeight.Normal,
                                     modifier = Modifier.weight(1f)
                                 )
+                                IconButton(
+                                    onClick = { onRename(category) },
+                                    modifier = Modifier.size(40.dp)
+                                ) {
+                                    Icon(
+                                        Icons.Default.Edit,
+                                        contentDescription = "Rename Category",
+                                        tint = MaterialTheme.colorScheme.primary,
+                                        modifier = Modifier.size(20.dp)
+                                    )
+                                }
                                 IconButton(
                                     onClick = { onDelete(category) },
                                     modifier = Modifier.size(40.dp)

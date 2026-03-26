@@ -104,6 +104,12 @@ class NotesViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
+    fun renameCategory(category: PersonalNoteCategory, newName: String) {
+        viewModelScope.launch {
+            repository.renameCategory(category, newName)
+        }
+    }
+
     fun reorderCategories(categories: List<PersonalNoteCategory>) {
         viewModelScope.launch {
             repository.reorderCategories(categories)

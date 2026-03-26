@@ -35,16 +35,16 @@ class PersonalNoteRepository(private val context: Context, private val verseDao:
     }
 
     suspend fun deleteNote(note: PersonalNote) {
-        verseDao.deletePersonalNote(note)
-        withContext(Dispatchers.IO) {
-            try {
-                SupabaseConfig.client.postgrest["personal_notes"].delete {
-                    filter { eq("id", note.id) }
-                }
-            } catch (e: Exception) {
-                e.printStackTrace()
-            }
-        }
+        val userId = getCurrentUserId()
+        // Soft delete locally.
+        verseDao.updatePersonalNote(note.copy(isDeleted = true, isSynced = false, userId = userId))
+        scheduleSync()
+    }
+
+    suspend fun renameCategory(category: PersonalNoteCategory, newName: String) {
+        val userId = getCurrentUserId()
+        verseDao.updateCategory(category.copy(name = newName, isSynced = false, userId = userId))
+        scheduleSync()
     }
 
     suspend fun deleteCategory(category: PersonalNoteCategory) {
@@ -81,15 +81,21 @@ class PersonalNoteRepository(private val context: Context, private val verseDao:
                 filter { eq("user_id", userId) }
             }.decodeList<PersonalNoteCategory>()
             categories.forEach { category ->
-                verseDao.insertCategory(category.copy(isSynced = true, userId = userId))
+                val local = verseDao.getCategoryById(category.id)
+                if (local == null || local.isSynced) {
+                    verseDao.insertCategory(category.copy(isSynced = true, userId = userId))
+                }
             }
 
             // Fetch Personal Notes
-            val notes = SupabaseConfig.client.postgrest["personal_notes"].select {
+            val personalNotes = SupabaseConfig.client.postgrest["personal_notes"].select {
                 filter { eq("user_id", userId) }
             }.decodeList<PersonalNote>()
-            notes.forEach { note ->
-                verseDao.insertPersonalNote(note.copy(isSynced = true, userId = userId))
+            personalNotes.forEach { note ->
+                val local = verseDao.getPersonalNoteById(note.id)
+                if (local == null || local.isSynced) {
+                    verseDao.insertPersonalNote(note.copy(isSynced = true, userId = userId))
+                }
             }
         } catch (e: Exception) {
             e.printStackTrace()

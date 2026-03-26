@@ -18,7 +18,7 @@ import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 
 sealed class Screen(val route: String, val title: String, val icon: androidx.compose.ui.graphics.vector.ImageVector) {
-    object Themes : Screen("themes", "Themes", Icons.Default.List)
+    object Themes : Screen("themes", "Verse Themes", Icons.Default.List)
     object Daily : Screen("daily", "Daily", Icons.Default.Edit)
     object PersonalNotes : Screen("personal_notes", "Notes", Icons.Default.MoreVert)
 }
@@ -32,7 +32,7 @@ fun MainContainer(
     onDeleteAccount: () -> Unit = {}
 ) {
     val navController = rememberNavController()
-    val items = listOf(Screen.Themes, Screen.PersonalNotes)
+    val items = listOf(Screen.PersonalNotes, Screen.Themes)
     var showSignOutDialog by remember { mutableStateOf(false) }
     var showDeleteDialog by remember { mutableStateOf(false) }
     var showMenu by remember { mutableStateOf(false) }
@@ -87,8 +87,8 @@ fun MainContainer(
                                 restoreState = true
                             }
                         },
-                        modifier = if (screen == Screen.PersonalNotes) {
-                            Modifier.tutorialTarget(TutorialStep.NOTES_TAB)
+                        modifier = if (screen == Screen.Themes) {
+                            Modifier.tutorialTarget(TutorialStep.ADD_THEME_FAB)
                         } else {
                             Modifier
                         }
@@ -99,7 +99,7 @@ fun MainContainer(
     ) { innerPadding ->
         NavHost(
             navController,
-            startDestination = Screen.Themes.route,
+            startDestination = Screen.PersonalNotes.route,
             modifier = Modifier.padding(innerPadding)
         ) {
             composable(Screen.Themes.route) {

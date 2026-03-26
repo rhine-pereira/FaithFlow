@@ -25,15 +25,14 @@ import androidx.compose.ui.window.Popup
 import androidx.compose.ui.window.PopupProperties
 
 enum class TutorialStep {
-    ADD_THEME_FAB,
-    NOTES_TAB,
     ADD_CATEGORY_BTN,
     ADD_NOTE_FAB,
     RICH_TEXT_EDITOR,
+    ADD_THEME_FAB,
     DONE
 }
 
-class TutorialState(initialStep: TutorialStep = TutorialStep.ADD_THEME_FAB) {
+class TutorialState(initialStep: TutorialStep = TutorialStep.ADD_CATEGORY_BTN) {
     var currentStep by mutableStateOf(initialStep)
     val targets = mutableStateMapOf<TutorialStep, Rect>()
     var isActive by mutableStateOf(initialStep != TutorialStep.DONE)
@@ -150,7 +149,7 @@ fun TutorialOverlay(state: TutorialState, onFinished: () -> Unit) {
                          Text("Skip Tutorial")
                      }
                      Button(onClick = { state.next() }) {
-                         Text(if (state.currentStep == TutorialStep.RICH_TEXT_EDITOR) "Done" else "Next")
+                         Text(if (state.currentStep == TutorialStep.ADD_THEME_FAB) "Done" else "Next")
                      }
                  }
              }
@@ -162,30 +161,25 @@ private data class TutorialContent(val title: String, val description: String, v
 
 private fun getTutorialContent(step: TutorialStep): TutorialContent {
     return when (step) {
-        TutorialStep.ADD_THEME_FAB -> TutorialContent(
-            "Themes & Verses",
-            "This is your home for Bible verses! Tap the '+' button below to create a Theme, like 'Faith' or 'Hope'. You can then add verses to it.",
-            "📚"
-        )
-        TutorialStep.NOTES_TAB -> TutorialContent(
-            "Switch to Notes",
-            "FaithFlow also lets you write personal reflections. Tap the 'Notes' tab at the bottom to explore it next.",
-            "✍️"
-        )
         TutorialStep.ADD_CATEGORY_BTN -> TutorialContent(
             "Organise with Categories",
-            "In Notes, you can create categories (like 'Sermon Notes' or 'Prayers') to keep things neat.",
+            "Welcome! In Notes, you can create categories (like 'Sermon Notes' or 'Prayers') to keep things neat. Tap 'Add Category' to start.",
             "📁"
         )
         TutorialStep.ADD_NOTE_FAB -> TutorialContent(
             "Write a Note",
-            "Tap the '+' button here to start a new note. You can format text with bold (**), italics (_), or lists (1. or -)!",
+            "Tap the '+' button to start a new note. You can format text with bold (**), italics (_), or lists (1. or -)!",
             "📝"
         )
         TutorialStep.RICH_TEXT_EDITOR -> TutorialContent(
             "Smart Verse Import",
-            "While writing a note, type a reference like 'John 3:16' and wait a second. A prompt will appear to auto-insert the verse instantly!",
+            "While writing a note, type a reference like 'John 3:16' and wait a second — a prompt will appear to auto-insert the verse!",
             "⚡"
+        )
+        TutorialStep.ADD_THEME_FAB -> TutorialContent(
+            "Verse Themes",
+            "Also check out the 'Verse Themes' tab! You can group your favourite Bible verses by theme — like 'Faith' or 'Hope'.",
+            "📚"
         )
         TutorialStep.DONE -> TutorialContent("", "", "")
     }

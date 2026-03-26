@@ -47,6 +47,7 @@ fun VerseScreen(
     
     // Deletion confirmation states
     var noteToDelete by remember { mutableStateOf<Note?>(null) }
+    var noteToRename by remember { mutableStateOf<Note?>(null) }
     var verseToDelete by remember { mutableStateOf<Verse?>(null) }
 
     val notesWithVerses by viewModel.allNotesWithVerses.collectAsState(initial = emptyList<NoteWithVerses>())
@@ -61,7 +62,17 @@ fun VerseScreen(
         topBar = {
             if (selectedNoteWithVerses != null) {
                 TopAppBar(
-                    title = { Text(selectedNoteWithVerses?.note?.theme ?: "") },
+                    title = {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(4.dp)
+                        ) {
+                            Text(selectedNoteWithVerses?.note?.theme ?: "")
+                            IconButton(onClick = { noteToRename = selectedNoteWithVerses?.note }) {
+                                Icon(Icons.Default.Edit, contentDescription = "Rename Theme", modifier = Modifier.size(18.dp))
+                            }
+                        }
+                    },
                     navigationIcon = {
                         IconButton(onClick = { selectedNoteWithVerses = null }) {
                             Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
@@ -75,7 +86,7 @@ fun VerseScreen(
                 onClick = {
                     if (selectedNoteWithVerses == null) showAddNoteDialog = true else showAddVerseDialog = true
                 },
-                modifier = Modifier.tutorialTarget(TutorialStep.ADD_THEME_FAB)
+                modifier = Modifier
             ) {
                 Icon(Icons.Default.Add, contentDescription = "Add")
             }
@@ -100,7 +111,8 @@ fun VerseScreen(
                             ThemeCard(
                                 noteWithVerses = noteWithVerses,
                                 onClick = { selectedNoteWithVerses = noteWithVerses },
-                                onDelete = { noteToDelete = noteWithVerses.note }
+                                onDelete = { noteToDelete = noteWithVerses.note },
+                                onRename = { noteToRename = noteWithVerses.note }
                             )
                         }
                     }
@@ -177,6 +189,23 @@ fun VerseScreen(
             )
         }
 
+        noteToRename?.let { note ->
+            RenameThemeDialog(
+                currentName = note.theme,
+                onDismiss = { noteToRename = null },
+                onConfirm = { newName ->
+                    viewModel.renameNote(note, newName)
+                    // Update selectedNoteWithVerses if this note is currently selected
+                    if (selectedNoteWithVerses?.note?.id == note.id) {
+                        selectedNoteWithVerses = selectedNoteWithVerses?.copy(
+                            note = note.copy(theme = newName)
+                        )
+                    }
+                    noteToRename = null
+                }
+            )
+        }
+
         // Delete Confirmation Dialogs
         noteToDelete?.let { note ->
             DeleteConfirmationDialog(
@@ -202,6 +231,30 @@ fun VerseScreen(
             )
         }
     }
+}
+
+@Composable
+fun RenameThemeDialog(currentName: String, onDismiss: () -> Unit, onConfirm: (String) -> Unit) {
+    var name by remember { mutableStateOf(currentName) }
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Rename Theme") },
+        text = {
+            TextField(
+                value = name,
+                onValueChange = { name = it },
+                label = { Text("Theme Name") },
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Text),
+                singleLine = true
+            )
+        },
+        confirmButton = {
+            Button(onClick = { if (name.isNotBlank()) onConfirm(name) }) { Text("Rename") }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) { Text("Cancel") }
+        }
+    )
 }
 
 @Composable
@@ -368,7 +421,7 @@ fun SharedTextDialog(
 }
 
 @Composable
-fun ThemeCard(noteWithVerses: NoteWithVerses, onClick: () -> Unit, onDelete: () -> Unit) {
+fun ThemeCard(noteWithVerses: NoteWithVerses, onClick: () -> Unit, onDelete: () -> Unit, onRename: () -> Unit) {
     Card(
         modifier = Modifier
             .fillMaxWidth()
@@ -390,6 +443,17 @@ fun ThemeCard(noteWithVerses: NoteWithVerses, onClick: () -> Unit, onDelete: () 
                     overflow = TextOverflow.Ellipsis,
                     modifier = Modifier.weight(1f)
                 )
+                IconButton(
+                    onClick = onRename,
+                    modifier = Modifier.size(24.dp)
+                ) {
+                    Icon(
+                        Icons.Default.Edit,
+                        contentDescription = "Rename Theme",
+                        tint = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.size(16.dp)
+                    )
+                }
                 IconButton(
                     onClick = onDelete,
                     modifier = Modifier.size(24.dp)

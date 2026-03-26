@@ -75,6 +75,12 @@ class VerseViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
+    fun renameNote(note: Note, newTheme: String) {
+        viewModelScope.launch {
+            repository.updateNote(note.copy(theme = newTheme))
+        }
+    }
+
     fun deleteNote(note: Note) {
         viewModelScope.launch {
             repository.deleteNote(note)
