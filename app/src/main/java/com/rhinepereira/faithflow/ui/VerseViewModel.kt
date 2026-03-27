@@ -1,8 +1,10 @@
 package com.rhinepereira.faithflow.ui
 
 import android.app.Application
+import android.content.Context
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
+import com.google.firebase.auth.FirebaseAuth
 import com.rhinepereira.faithflow.data.*
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.SharingStarted
@@ -11,11 +13,11 @@ import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.launch
 
 class VerseViewModel(application: Application) : AndroidViewModel(application) {
     private val repository: VerseRepository
     private val authRepository = AuthRepository()
+    private val themeOrderPrefs = application.getSharedPreferences("theme_order_prefs", Context.MODE_PRIVATE)
     val allNotesWithVerses: StateFlow<List<NoteWithVerses>>
 
     init {
@@ -91,5 +93,33 @@ class VerseViewModel(application: Application) : AndroidViewModel(application) {
         viewModelScope.launch {
             repository.deleteVerse(verse)
         }
+    }
+
+    fun applySavedThemeOrder(notes: List<NoteWithVerses>): List<NoteWithVerses> {
+        val savedOrder = getSavedThemeOrder()
+        if (savedOrder.isEmpty()) return notes
+
+        val byId = notes.associateBy { it.note.id }.toMutableMap()
+        val ordered = savedOrder.mapNotNull { byId.remove(it) }
+        val remaining = byId.values.sortedByDescending { it.note.createdAt }
+        return remaining + ordered
+    }
+
+    fun persistThemeOrder(orderedThemeIds: List<String>) {
+        themeOrderPrefs
+            .edit()
+            .putString(getThemeOrderKey(), orderedThemeIds.joinToString(","))
+            .apply()
+    }
+
+    private fun getSavedThemeOrder(): List<String> {
+        val raw = themeOrderPrefs.getString(getThemeOrderKey(), "") ?: ""
+        if (raw.isBlank()) return emptyList()
+        return raw.split(",").map { it.trim() }.filter { it.isNotEmpty() }
+    }
+
+    private fun getThemeOrderKey(): String {
+        val userId = FirebaseAuth.getInstance().currentUser?.uid ?: "local_user"
+        return "theme_order_$userId"
     }
 }

@@ -3,35 +3,45 @@ package com.rhinepereira.faithflow.ui
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.detectDragGesturesAfterLongPress
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
-import androidx.compose.foundation.lazy.grid.items
+import androidx.compose.foundation.lazy.grid.animateItemPlacement
+import androidx.compose.foundation.lazy.grid.itemsIndexed
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.DragHandle
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.input.pointer.consume
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.DialogProperties
 import androidx.compose.ui.window.PopupProperties
+import androidx.compose.ui.zIndex
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.rhinepereira.faithflow.data.BibleData
 import com.rhinepereira.faithflow.data.BibleDatabaseHelper
 import com.rhinepereira.faithflow.data.Note
 import com.rhinepereira.faithflow.data.NoteWithVerses
 import com.rhinepereira.faithflow.data.Verse
+import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -52,6 +62,17 @@ fun VerseScreen(
     var verseToDelete by remember { mutableStateOf<Verse?>(null) }
 
     val notesWithVerses by viewModel.allNotesWithVerses.collectAsState(initial = emptyList<NoteWithVerses>())
+    var orderedNotesWithVerses by remember { mutableStateOf(emptyList<NoteWithVerses>()) }
+    var draggedThemeId by remember { mutableStateOf<String?>(null) }
+    var dragOffset by remember { mutableStateOf(Offset.Zero) }
+    var accumulatedDrag by remember { mutableStateOf(Offset.Zero) }
+    val density = LocalDensity.current
+    val scope = rememberCoroutineScope()
+    val gridState = androidx.compose.foundation.lazy.grid.rememberLazyGridState()
+
+    LaunchedEffect(notesWithVerses) {
+        orderedNotesWithVerses = viewModel.applySavedThemeOrder(notesWithVerses)
+    }
 
     LaunchedEffect(sharedText) {
         if (sharedText != null) {
@@ -96,25 +117,118 @@ fun VerseScreen(
         Box(modifier = Modifier.padding(padding)) {
             if (selectedNoteWithVerses == null) {
                 // Themes Grid
-                if (notesWithVerses.isEmpty()) {
+                val displayedThemes = if (orderedNotesWithVerses.isEmpty() && notesWithVerses.isNotEmpty()) {
+                    viewModel.applySavedThemeOrder(notesWithVerses)
+                } else {
+                    orderedNotesWithVerses
+                }
+
+                if (displayedThemes.isEmpty()) {
                     Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                         Text("No themes yet. Add one to start!", color = MaterialTheme.colorScheme.outline)
                     }
                 } else {
-                    LazyVerticalGrid(
-                        columns = GridCells.Fixed(2),
-                        modifier = Modifier.fillMaxSize(),
-                        contentPadding = PaddingValues(16.dp),
-                        horizontalArrangement = Arrangement.spacedBy(12.dp),
-                        verticalArrangement = Arrangement.spacedBy(12.dp)
-                    ) {
-                        items(notesWithVerses, key = { it.note.id }) { noteWithVerses ->
-                            ThemeCard(
-                                noteWithVerses = noteWithVerses,
-                                onClick = { selectedNoteWithVerses = noteWithVerses },
-                                onDelete = { noteToDelete = noteWithVerses.note },
-                                onRename = { noteToRename = noteWithVerses.note }
-                            )
+                    BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
+                        val dragStepX = with(density) { (((maxWidth - 32.dp - 12.dp) / 2f) + 12.dp).toPx() }
+                        val dragStepY = with(density) { (180.dp + 12.dp).toPx() }
+                        val edgeThresholdPx = with(density) { 96.dp.toPx() }
+
+                        LazyVerticalGrid(
+                            state = gridState,
+                            columns = GridCells.Fixed(2),
+                            modifier = Modifier.fillMaxSize(),
+                            contentPadding = PaddingValues(16.dp),
+                            horizontalArrangement = Arrangement.spacedBy(12.dp),
+                            verticalArrangement = Arrangement.spacedBy(12.dp)
+                        ) {
+                            itemsIndexed(displayedThemes, key = { _, item -> item.note.id }) { _, noteWithVerses ->
+                                val isDragging = draggedThemeId == noteWithVerses.note.id
+
+                                ThemeCard(
+                                    noteWithVerses = noteWithVerses,
+                                    onClick = { selectedNoteWithVerses = noteWithVerses },
+                                    onDelete = { noteToDelete = noteWithVerses.note },
+                                    onRename = { noteToRename = noteWithVerses.note },
+                                    isDragging = isDragging,
+                                    modifier = Modifier
+                                        .animateItemPlacement()
+                                        .zIndex(if (isDragging) 2f else 0f)
+                                        .graphicsLayer {
+                                            if (isDragging) {
+                                                translationX = dragOffset.x
+                                                translationY = dragOffset.y
+                                                scaleX = 1.035f
+                                                scaleY = 1.035f
+                                            }
+                                        }
+                                        .pointerInput(noteWithVerses.note.id, displayedThemes.map { it.note.id }) {
+                                            detectDragGesturesAfterLongPress(
+                                                onDragStart = {
+                                                    draggedThemeId = noteWithVerses.note.id
+                                                    dragOffset = Offset.Zero
+                                                    accumulatedDrag = Offset.Zero
+                                                },
+                                                onDragEnd = {
+                                                    if (draggedThemeId != null) {
+                                                        viewModel.persistThemeOrder(orderedNotesWithVerses.map { it.note.id })
+                                                    }
+                                                    draggedThemeId = null
+                                                    dragOffset = Offset.Zero
+                                                    accumulatedDrag = Offset.Zero
+                                                },
+                                                onDragCancel = {
+                                                    draggedThemeId = null
+                                                    dragOffset = Offset.Zero
+                                                    accumulatedDrag = Offset.Zero
+                                                },
+                                                onDrag = { change, dragAmount ->
+                                                    change.consume()
+                                                    if (draggedThemeId != noteWithVerses.note.id) return@detectDragGesturesAfterLongPress
+
+                                                    dragOffset = Offset(
+                                                        dragOffset.x + dragAmount.x,
+                                                        dragOffset.y + dragAmount.y
+                                                    )
+                                                    accumulatedDrag = Offset(
+                                                        accumulatedDrag.x + dragAmount.x,
+                                                        accumulatedDrag.y + dragAmount.y
+                                                    )
+
+                                                    // Edge auto-scroll like Keep
+                                                    val yInGrid = change.position.y
+                                                    val nearTop = yInGrid < edgeThresholdPx
+                                                    val nearBottom = yInGrid > (size.height - edgeThresholdPx)
+                                                    if (nearTop || nearBottom) {
+                                                        scope.launch {
+                                                            gridState.scrollBy(if (nearTop) -32f else 32f)
+                                                        }
+                                                    }
+
+                                                    val currentThemes = orderedNotesWithVerses
+                                                    val currentIndex = currentThemes.indexOfFirst { it.note.id == noteWithVerses.note.id }
+                                                    if (currentIndex < 0) return@detectDragGesturesAfterLongPress
+
+                                                    val horizontalSteps = (accumulatedDrag.x / dragStepX).toInt()
+                                                    val verticalSteps = (accumulatedDrag.y / dragStepY).toInt()
+                                                    if (horizontalSteps == 0 && verticalSteps == 0) return@detectDragGesturesAfterLongPress
+
+                                                    val targetIndex = (currentIndex + horizontalSteps + (verticalSteps * 2))
+                                                        .coerceIn(0, currentThemes.lastIndex)
+                                                    if (targetIndex != currentIndex) {
+                                                        orderedNotesWithVerses = currentThemes.toMutableList().apply {
+                                                            move(currentIndex, targetIndex)
+                                                        }
+                                                    }
+
+                                                    accumulatedDrag = Offset(
+                                                        accumulatedDrag.x - (horizontalSteps * dragStepX),
+                                                        accumulatedDrag.y - (verticalSteps * dragStepY)
+                                                    )
+                                                }
+                                            )
+                                        }
+                                )
+                            }
                         }
                     }
                 }
@@ -461,17 +575,28 @@ fun SharedTextDialog(
 }
 
 @Composable
-fun ThemeCard(noteWithVerses: NoteWithVerses, onClick: () -> Unit, onDelete: () -> Unit, onRename: () -> Unit) {
+fun ThemeCard(
+    noteWithVerses: NoteWithVerses,
+    onClick: () -> Unit,
+    onDelete: () -> Unit,
+    onRename: () -> Unit,
+    modifier: Modifier = Modifier,
+    isDragging: Boolean = false
+) {
     Card(
-        modifier = Modifier
+        modifier = modifier
             .fillMaxWidth()
             .height(180.dp)
-            .clickable { onClick() },
-        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
+            .clickable(enabled = !isDragging) { onClick() },
+        elevation = CardDefaults.cardElevation(defaultElevation = if (isDragging) 10.dp else 2.dp),
         colors = CardDefaults.cardColors(
             containerColor = MaterialTheme.colorScheme.surface
         ),
-        border = BorderStroke(0.5.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.3f))
+        border = BorderStroke(
+            if (isDragging) 1.dp else 0.5.dp,
+            if (isDragging) MaterialTheme.colorScheme.primary.copy(alpha = 0.65f)
+            else MaterialTheme.colorScheme.primary.copy(alpha = 0.3f)
+        )
     ) {
         Column(modifier = Modifier.padding(16.dp)) {
             Row(
@@ -479,6 +604,16 @@ fun ThemeCard(noteWithVerses: NoteWithVerses, onClick: () -> Unit, onDelete: () 
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.Top
             ) {
+                if (isDragging) {
+                    Icon(
+                        imageVector = Icons.Default.DragHandle,
+                        contentDescription = "Dragging",
+                        tint = MaterialTheme.colorScheme.primary.copy(alpha = 0.7f),
+                        modifier = Modifier
+                            .padding(end = 6.dp)
+                            .size(18.dp)
+                    )
+                }
                 Text(
                     text = noteWithVerses.note.theme,
                     style = MaterialTheme.typography.titleLarge,
@@ -552,6 +687,12 @@ fun ThemeCard(noteWithVerses: NoteWithVerses, onClick: () -> Unit, onDelete: () 
             }
         }
     }
+}
+
+private fun <T> MutableList<T>.move(fromIndex: Int, toIndex: Int) {
+    if (fromIndex == toIndex) return
+    val item = removeAt(fromIndex)
+    add(toIndex, item)
 }
 
 @Composable
