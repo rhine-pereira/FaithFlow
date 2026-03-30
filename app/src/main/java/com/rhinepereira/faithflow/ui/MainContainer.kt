@@ -39,6 +39,19 @@ fun MainContainer(
     var showDeleteDialog by remember { mutableStateOf(false) }
     var showMenu by remember { mutableStateOf(false) }
 
+    // Navigate to Themes screen when shared text arrives
+    LaunchedEffect(sharedText) {
+        if (sharedText != null) {
+            navController.navigate(Screen.Themes.route) {
+                popUpTo(navController.graph.findStartDestination().id) {
+                    saveState = true
+                }
+                launchSingleTop = true
+                restoreState = true
+            }
+        }
+    }
+
     Scaffold(
         topBar = {
             TopAppBar(

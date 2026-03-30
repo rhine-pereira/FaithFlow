@@ -48,30 +48,19 @@ class PersonalNoteRepository(private val context: Context, private val verseDao:
     }
 
     suspend fun deleteCategory(category: PersonalNoteCategory) {
-        // Delete all notes in this category first.
+        val userId = getCurrentUserId()
+        
+        // Soft-delete all notes in this category first.
         val notesInCategory = verseDao.getNotesForCategorySync(category.id)
         notesInCategory.forEach { note ->
-            verseDao.deletePersonalNote(note)
+            verseDao.updatePersonalNote(note.copy(isDeleted = true, isSynced = false, userId = userId))
         }
 
-        // Delete locally.
-        verseDao.deleteCategory(category)
-
-        // Delete remotely.
-        withContext(Dispatchers.IO) {
-            try {
-                notesInCategory.forEach { note ->
-                    SupabaseConfig.client.postgrest["personal_notes"].delete {
-                        filter { eq("id", note.id) }
-                    }
-                }
-                SupabaseConfig.client.postgrest["personal_note_categories"].delete {
-                    filter { eq("id", category.id) }
-                }
-            } catch (e: Exception) {
-                e.printStackTrace()
-            }
-        }
+        // Soft-delete the category locally.
+        verseDao.updateCategory(category.copy(isDeleted = true, isSynced = false, userId = userId))
+        
+        // Let SyncWorker handle remote deletion
+        scheduleSync()
     }
 
     suspend fun syncFromCloud(userId: String) = withContext(Dispatchers.IO) {

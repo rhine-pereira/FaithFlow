@@ -416,7 +416,7 @@ fun FullScreenNoteEditor(
 
     LaunchedEffect(title, contentValue.text) {
         if (title != note.title || contentValue.text != note.content) {
-            delay(1000)
+            delay(500)  // Reduced from 5000ms to 500ms to minimize data loss risk
             onSave(title, contentValue.text)
         }
     }

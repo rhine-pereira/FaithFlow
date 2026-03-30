@@ -43,15 +43,8 @@ class NotesViewModel(application: Application) : AndroidViewModel(application) {
             initialValue = emptyList()
         )
 
-        // Fetch latest cloud data after authentication.
-        viewModelScope.launch {
-            authStatus.collect { status ->
-                if (status is AuthStatus.Authenticated) {
-                    val userId = status.userId
-                    verseRepository.fetchFromSupabase(userId)
-                }
-            }
-        }
+        // Note: VerseViewModel already handles fetchFromSupabase on auth,
+        // so we don't need to duplicate it here to avoid redundant sync calls
     }
 
     fun getNotesForCategory(categoryId: String): Flow<List<PersonalNote>> = repository.getNotesForCategory(categoryId)

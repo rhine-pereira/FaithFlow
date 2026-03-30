@@ -18,6 +18,7 @@ import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.DragHandle
 import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -761,6 +762,7 @@ fun AddVerseDialog(onDismiss: () -> Unit, onConfirm: (String, String) -> Unit) {
     var content by remember { mutableStateOf("") }
     
     var showVerseFetchConfirmation by remember { mutableStateOf<String?>(null) }
+    var showVerseNotFound by remember { mutableStateOf(false) }
 
     AlertDialog(
         onDismissRequest = onDismiss,
@@ -855,7 +857,7 @@ fun AddVerseDialog(onDismiss: () -> Unit, onConfirm: (String, String) -> Unit) {
                             if (fetched != null) {
                                 showVerseFetchConfirmation = fetched
                             } else {
-                                // Handle not found (optional toast)
+                                showVerseNotFound = true
                             }
                         }
                     },
@@ -867,7 +869,17 @@ fun AddVerseDialog(onDismiss: () -> Unit, onConfirm: (String, String) -> Unit) {
                     ),
                     border = BorderStroke(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.3f))
                 ) {
-                    Text("Fetch Verse from Bible.db", fontWeight = FontWeight.SemiBold)
+                    Row(
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Icon(
+                            Icons.Default.Search, 
+                            contentDescription = "Search Bible",
+                            modifier = Modifier.size(18.dp)
+                        )
+                        Text("Fetch from Bible, RSV", fontWeight = FontWeight.SemiBold)
+                    }
                 }
             }
         },
@@ -914,6 +926,43 @@ fun AddVerseDialog(onDismiss: () -> Unit, onConfirm: (String, String) -> Unit) {
             dismissButton = {
                 TextButton(onClick = { showVerseFetchConfirmation = null }) { 
                     Text("No", color = MaterialTheme.colorScheme.outline) 
+                }
+            }
+        )
+    }
+    
+    // Verse Not Found Dialog
+    if (showVerseNotFound) {
+        AlertDialog(
+            onDismissRequest = { showVerseNotFound = false },
+            title = { 
+                Text(
+                    "Verse Not Found", 
+                    style = MaterialTheme.typography.headlineSmall, 
+                    color = MaterialTheme.colorScheme.error
+                ) 
+            },
+            text = { 
+                Column(
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    Text(
+                        "We couldn't find the verse you're looking for.",
+                        style = MaterialTheme.typography.bodyLarge
+                    )
+                    Text(
+                        "If you think this is a mistake, please contact us.",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+            },
+            confirmButton = {
+                Button(
+                    onClick = { showVerseNotFound = false },
+                    colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error)
+                ) { 
+                    Text("OK", fontWeight = FontWeight.Bold) 
                 }
             }
         )
