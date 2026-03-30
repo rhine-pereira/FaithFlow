@@ -80,6 +80,13 @@ class SyncWorker(
                 }
             }
 
+            // 6. Sync Daily Records
+            val unsyncedDaily = dao.getUnsyncedDailyRecords()
+            unsyncedDaily.forEach { record ->
+                SupabaseConfig.client.postgrest["daily_records"].upsert(record.copy(userId = userId))
+                dao.updateDailyRecord(record.copy(isSynced = true, userId = userId))
+            }
+
             Result.success()
         } catch (e: Exception) {
             e.printStackTrace()

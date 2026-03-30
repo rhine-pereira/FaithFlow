@@ -23,6 +23,9 @@ credentials = "1.5.0-rc01"
 googleid = "1.1.1"
 firebaseBom = "33.9.0"
 googleServices = "4.4.2"
+playCore = "2.1.0"
+androidMaterial = "1.12.0"
+
 
 [libraries]
 androidx-core-ktx = { group = "androidx.core", name = "core-ktx", version.ref = "coreKtx" }
@@ -42,6 +45,7 @@ androidx-compose-material3 = { group = "androidx.compose.material3", name = "mat
 androidx-navigation-compose = { group = "androidx.navigation", name = "navigation-compose", version.ref = "navigation" }
 androidx-compose-material-icons-extended = { group = "androidx.compose.material", name = "material-icons-extended", version.ref = "materialIconsExtended" }
 androidx-compose-material = { group = "androidx.compose.material", name = "material", version.ref = "material" }
+google-android-material = { group = "com.google.android.material", name = "material", version.ref = "androidMaterial" }
 
 # Room
 room-runtime = { group = "androidx.room", name = "room-runtime", version.ref = "room" }
@@ -56,6 +60,11 @@ kotlinx-serialization-json = { group = "org.jetbrains.kotlinx", name = "kotlinx-
 firebase-bom = { group = "com.google.firebase", name = "firebase-bom", version.ref = "firebaseBom" }
 firebase-auth = { group = "com.google.firebase", name = "firebase-auth" }
 firebase-auth-ktx = { group = "com.google.firebase", name = "firebase-auth-ktx" }
+firebase-config = { group = "com.google.firebase", name = "firebase-config" }
+
+# Play Core
+play-app-update = { group = "com.google.android.play", name = "app-update", version.ref = "playCore" }
+play-app-update-ktx = { group = "com.google.android.play", name = "app-update-ktx", version.ref = "playCore" }
 
 # Credential Manager (Google Sign-In)
 credentials = { group = "androidx.credentials", name = "credentials", version.ref = "credentials" }

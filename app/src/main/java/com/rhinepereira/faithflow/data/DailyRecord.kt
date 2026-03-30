@@ -3,11 +3,13 @@ package com.rhinepereira.faithflow.data
 import androidx.room.Entity
 import androidx.room.Index
 import androidx.room.PrimaryKey
+import kotlinx.serialization.EncodeDefault
+import kotlinx.serialization.ExperimentalSerializationApi
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 import java.util.*
 
-/*
+@OptIn(ExperimentalSerializationApi::class)
 @Serializable
 @Entity(
     tableName = "daily_records",
@@ -19,15 +21,19 @@ data class DailyRecord(
     @SerialName("date")
     val date: Long, // normalized to start of day
     
+    @EncodeDefault
     @SerialName("read_today")
     val readToday: Boolean = false,
     @SerialName("what_read")
     val whatRead: String? = null,
+    @EncodeDefault
     @SerialName("total_read_time_minutes")
     val totalReadTimeMinutes: Int = 0,
     
+    @EncodeDefault
     @SerialName("prayed_today")
     val prayedToday: Boolean = false,
+    @EncodeDefault
     @SerialName("total_prayer_time_minutes")
     val totalPrayerTimeMinutes: Int = 0,
     @SerialName("prophecy")
@@ -37,7 +43,12 @@ data class DailyRecord(
     val userId: String = "",
     @SerialName("created_at")
     val createdAt: Long = System.currentTimeMillis(),
+    
     @SerialName("is_synced")
-    val isSynced: Boolean = false
+    val isSynced: Boolean = false,
+    
+    @EncodeDefault
+    @SerialName("is_sealed")
+    val isSealed: Boolean = false
 )
-*/
+

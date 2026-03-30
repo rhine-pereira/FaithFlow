@@ -7,7 +7,7 @@ import androidx.room.RoomDatabase
 import androidx.room.migration.Migration
 import androidx.sqlite.db.SupportSQLiteDatabase
 
-@Database(entities = [Note::class, Verse::class, PersonalNoteCategory::class, PersonalNote::class], version = 7, exportSchema = false)
+@Database(entities = [Note::class, Verse::class, PersonalNote::class, PersonalNoteCategory::class, DailyRecord::class], version = 9, exportSchema = false)
 abstract class AppDatabase : RoomDatabase() {
     abstract fun verseDao(): VerseDao
 

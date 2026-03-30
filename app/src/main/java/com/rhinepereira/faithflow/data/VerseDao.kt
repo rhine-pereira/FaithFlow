@@ -49,7 +49,6 @@ interface VerseDao {
     suspend fun getVerseById(id: String): Verse?
 
     // Daily Records
-    /*
     @Query("SELECT * FROM daily_records WHERE userId = :userId ORDER BY date DESC")
     fun getAllDailyRecords(userId: String): Flow<List<DailyRecord>>
 
@@ -65,9 +64,9 @@ interface VerseDao {
     @Update
     suspend fun updateDailyRecord(record: DailyRecord)
 
-    @Query("SELECT * FROM daily_records WHERE isSynced = 0")
+    @Query("SELECT * FROM daily_records WHERE isSynced = 0 AND isSealed = 1")
     suspend fun getUnsyncedDailyRecords(): List<DailyRecord>
-    */
+
 
     // Personal Notes
     @Query("SELECT * FROM personal_note_categories WHERE userId = :userId AND isDeleted = 0 ORDER BY createdAt ASC")
@@ -102,9 +101,6 @@ interface VerseDao {
 
     @Delete
     suspend fun deleteCategory(category: PersonalNoteCategory)
-
-    @Query("SELECT * FROM personal_note_categories WHERE userId = :userId AND name IN ('CYP Talks', 'CGS Talks', 'Prophecies', 'prophcy')")
-    suspend fun getLegacyCategories(userId: String): List<PersonalNoteCategory>
 
     @Query("SELECT * FROM personal_note_categories WHERE isSynced = 0")
     suspend fun getUnsyncedCategories(): List<PersonalNoteCategory>

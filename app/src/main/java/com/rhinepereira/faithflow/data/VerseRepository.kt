@@ -118,6 +118,21 @@ class VerseRepository(private val context: Context, private val verseDao: VerseD
                     verseDao.insertPersonalNote(personalNote.copy(isSynced = true, userId = userId))
                 }
             }
+
+            // Fetch Daily Records
+            val dailyRecords = SupabaseConfig.client.postgrest["daily_records"].select {
+                filter { eq("user_id", userId) }
+            }.decodeList<DailyRecord>()
+            Log.d(tag, "Fetched ${dailyRecords.size} daily records")
+            dailyRecords.forEach { record ->
+                // Check if already exists synced
+                val startOfDay = record.date
+                val endOfDay = startOfDay + (24 * 60 * 60 * 1000)
+                val local = verseDao.getRecordForDateSync(userId, startOfDay, endOfDay)
+                if (local == null || local.isSynced) {
+                    verseDao.insertDailyRecord(record.copy(isSynced = true, userId = userId))
+                }
+            }
             Log.d(tag, "Fetch completed successfully")
         } catch (e: Exception) {
             Log.e(tag, "Fetch failed spectacularly", e)

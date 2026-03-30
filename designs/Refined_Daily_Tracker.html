@@ -1,0 +1,190 @@
+<!DOCTYPE html>
+
+<html class="dark" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>FaithFlow | Daily Spiritual Tracker</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&amp;family=Noto+Serif:ital,wght@0,400;0,700;1,400&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+      tailwind.config = {
+        darkMode: "class",
+        theme: {
+          extend: {
+            colors: {
+              "outline-variant": "#4d4635",
+              "surface-tint": "#e9c349",
+              "tertiary-container": "#97b0ff",
+              "on-secondary-fixed-variant": "#544519",
+              "primary": "#f2ca50",
+              "on-background": "#e5e2e1",
+              "surface-bright": "#393939",
+              "outline": "#99907c",
+              "on-tertiary-container": "#254188",
+              "primary-fixed": "#ffe088",
+              "surface": "#131313",
+              "tertiary": "#bfcdff",
+              "on-error-container": "#ffdad6",
+              "on-tertiary-fixed-variant": "#27438a",
+              "surface-container-highest": "#353534",
+              "background": "#131313",
+              "secondary": "#dac58d",
+              "on-primary-container": "#554300",
+              "surface-variant": "#353534",
+              "on-surface-variant": "#d0c5af",
+              "surface-container-lowest": "#0e0e0e",
+              "on-primary": "#3c2f00",
+              "on-primary-fixed": "#241a00",
+              "surface-container-high": "#2a2a2a",
+              "on-error": "#690005",
+              "on-secondary-container": "#c8b37d",
+              "primary-fixed-dim": "#e9c349",
+              "secondary-fixed-dim": "#dac58d",
+              "tertiary-fixed": "#dbe1ff",
+              "on-surface": "#e5e2e1",
+              "on-primary-fixed-variant": "#574500",
+              "surface-container-low": "#1c1b1b",
+              "on-secondary-fixed": "#241a00",
+              "on-tertiary": "#082b72",
+              "secondary-fixed": "#f7e1a6",
+              "inverse-surface": "#e5e2e1",
+              "on-tertiary-fixed": "#00174b",
+              "inverse-primary": "#735c00",
+              "secondary-container": "#544519",
+              "surface-dim": "#131313",
+              "error-container": "#93000a",
+              "primary-container": "#d4af37",
+              "error": "#ffb4ab",
+              "on-secondary": "#3c2f05",
+              "tertiary-fixed-dim": "#b4c5ff",
+              "surface-container": "#201f1f",
+              "inverse-on-surface": "#313030"
+            },
+            fontFamily: {
+              "headline": ["Noto Serif"],
+              "body": ["Inter"],
+              "label": ["Inter"]
+            },
+            borderRadius: {"DEFAULT": "0.125rem", "lg": "0.25rem", "xl": "0.5rem", "full": "0.75rem"},
+          },
+        },
+      }
+    </script>
+<style>
+      .material-symbols-outlined {
+        font-variation-settings: 'FILL' 0, 'wght' 200, 'GRAD' 0, 'opsz' 24;
+      }
+      body {
+        background-color: #131313;
+        color: #e5e2e1;
+      }
+      .sacred-gradient {
+        background: linear-gradient(135deg, #f2ca50 0%, #d4af37 100%);
+      }
+      .glass-card {
+        background: rgba(32, 31, 31, 0.6);
+        backdrop-filter: blur(12px);
+      }
+      body {
+        min-height: max(884px, 100dvh);
+      }
+      /* Custom visibility logic for demonstration */
+      .custom-duration-field { display: none; }
+      #custom-btn:checked ~ .custom-duration-field { display: block; }
+    </style>
+</head>
+<body class="font-body selection:bg-primary-container selection:text-on-primary-container">
+<main class="pt-12 pb-32 px-6 max-w-2xl mx-auto space-y-10">
+<!-- Header Section (Refined: Only Date) -->
+<section class="space-y-2">
+<p class="text-primary font-serif italic opacity-80 text-sm tracking-wide">Tuesday, October 24</p>
+</section>
+<!-- Tracker Canvas -->
+<div class="space-y-8">
+<!-- Reading Tracker -->
+<div class="group">
+<div class="flex items-center justify-between py-6">
+<div class="space-y-1">
+<h3 class="text-xl font-serif text-on-surface">Have you read the Word today?</h3>
+<p class="text-on-surface-variant text-sm">Divine nourishment for the soul.</p>
+</div>
+<label class="relative inline-flex items-center cursor-pointer">
+<input checked="" class="sr-only peer" type="checkbox"/>
+<div class="w-14 h-7 bg-surface-container-highest peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full rtl:peer-checked:after:-translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:start-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-6 after:w-6 after:transition-all peer-checked:bg-primary-container"></div>
+</label>
+</div>
+<!-- Reveal: Study Details -->
+<div class="mt-2 pl-4 border-l border-outline-variant/30 py-4 space-y-4">
+<label class="block text-sm font-label text-on-surface-variant uppercase tracking-widest">Which chapters or verses did you study?</label>
+<input class="w-full bg-surface-container-highest border-none focus:ring-1 focus:ring-primary-container py-4 px-6 text-on-surface font-serif text-lg placeholder:text-on-surface-variant/40 placeholder:font-serif" placeholder="e.g. Psalm 23, John 1:1-14" type="text"/>
+</div>
+</div>
+<!-- Spacer -->
+<div class="h-px bg-gradient-to-r from-transparent via-outline-variant/20 to-transparent"></div>
+<!-- Prayer Tracker -->
+<div class="group">
+<div class="flex items-center justify-between py-6">
+<div class="space-y-1">
+<h3 class="text-xl font-serif text-on-surface">Time in personal prayer?</h3>
+<p class="text-on-surface-variant text-sm">Communing with the Creator.</p>
+</div>
+<label class="relative inline-flex items-center cursor-pointer">
+<input class="sr-only peer" type="checkbox"/>
+<div class="w-14 h-7 bg-surface-container-highest peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full rtl:peer-checked:after:-translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:start-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-6 after:w-6 after:transition-all peer-checked:bg-primary-container"></div>
+</label>
+</div>
+<!-- Duration Reveal -->
+<div class="mt-2 pl-4 border-l border-outline-variant/30 py-4 space-y-4">
+<label class="block text-sm font-label text-on-surface-variant uppercase tracking-widest">Dedication duration</label>
+<div class="flex flex-wrap gap-3">
+<button class="flex-1 py-3 px-2 bg-surface-container-low border border-outline-variant/20 text-on-surface-variant rounded-sm text-sm hover:border-primary/40 transition-colors">15 min</button>
+<button class="flex-1 py-3 px-2 bg-surface-container-high border border-primary/60 text-primary rounded-sm text-sm">30 min</button>
+<button class="flex-1 py-3 px-2 bg-surface-container-low border border-outline-variant/20 text-on-surface-variant rounded-sm text-sm hover:border-primary/40 transition-colors">1 hr</button>
+<button class="flex-1 py-3 px-2 bg-surface-container-low border border-outline-variant/20 text-on-surface-variant rounded-sm text-sm hover:border-primary/40 transition-colors" id="custom-trigger" onclick="document.getElementById('custom-input-wrap').classList.toggle('hidden')">Custom</button>
+</div>
+<!-- Custom Input Field -->
+<div class="hidden mt-4 animate-in fade-in slide-in-from-top-2" id="custom-input-wrap">
+<input class="w-full bg-surface-container-highest border-none focus:ring-1 focus:ring-primary-container py-3 px-4 text-on-surface font-serif text-base placeholder:text-on-surface-variant/40" placeholder="Enter duration (e.g. 45 min)" type="text"/>
+</div>
+</div>
+</div>
+<!-- Prophetic Word Section -->
+<div class="pt-8 space-y-6">
+<div class="flex items-center gap-3">
+<span class="material-symbols-outlined text-primary" style="font-variation-settings: 'FILL' 1;">auto_awesome</span>
+<h3 class="text-2xl font-serif text-on-surface">Prophetic Word &amp; Insights</h3>
+</div>
+<div class="relative">
+<textarea class="w-full bg-surface-container border-none focus:ring-2 focus:ring-primary/20 p-8 text-on-surface font-serif text-lg leading-relaxed placeholder:text-on-surface-variant/30 resize-none rounded-xl shadow-inner" placeholder="What is the Spirit whispering to your heart in this season?" rows="5"></textarea>
+<div class="absolute bottom-4 right-4 text-[10px] uppercase tracking-tighter text-on-surface-variant/40">Sacred Journal • Auto-saving</div>
+</div>
+</div>
+<!-- Final Action -->
+<div class="pt-10 flex flex-col items-center">
+<button class="sacred-gradient text-on-primary-container font-serif px-12 py-4 rounded-sm shadow-xl hover:scale-[1.02] active:scale-95 transition-all text-lg font-bold tracking-tight">
+                Seal Today's Walk
+            </button>
+<p class="mt-6 text-on-surface-variant text-sm font-light italic">"Be still, and know..."</p>
+</div>
+</div>
+</main>
+<!-- BottomNavBar Consistent with COMPONENTS_13 -->
+<nav class="fixed bottom-8 left-0 right-0 z-50 flex justify-around items-center mx-auto bg-[#201f1f]/80 backdrop-blur-xl fixed bottom-6 left-1/2 -translate-x-1/2 w-[90%] max-w-md rounded-full px-6 py-3 shadow-[0px_0px_40px_0px_rgba(0,0,0,0.5)]">
+<a class="text-[#353534] scale-100 hover:text-[#d4af37] transition-all duration-500 tap-highlight-none active:scale-95 flex flex-col items-center" href="#">
+<span class="material-symbols-outlined">home</span>
+</a>
+<a class="text-[#f2ca50] scale-110 drop-shadow-[0_0_8px_rgba(212,175,55,0.4)] hover:text-[#d4af37] transition-all duration-500 tap-highlight-none active:scale-95 flex flex-col items-center" href="#">
+<span class="material-symbols-outlined" style="font-variation-settings: 'FILL' 1;">ink_pen</span>
+</a>
+<a class="text-[#353534] scale-100 hover:text-[#d4af37] transition-all duration-500 tap-highlight-none active:scale-95 flex flex-col items-center" href="#">
+<span class="material-symbols-outlined">star</span>
+</a>
+<a class="text-[#353534] scale-100 hover:text-[#d4af37] transition-all duration-500 tap-highlight-none active:scale-95 flex flex-col items-center" href="#">
+<span class="material-symbols-outlined">bookmark</span>
+</a>
+<a class="text-[#353534] scale-100 hover:text-[#d4af37] transition-all duration-500 tap-highlight-none active:scale-95 flex flex-col items-center" href="#">
+<span class="material-symbols-outlined">settings</span>
+</a>
+</nav>
+</body></html>

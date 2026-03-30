@@ -21,12 +21,38 @@ import com.rhinepereira.faithflow.ui.AuthViewModel
 import com.rhinepereira.faithflow.ui.LoginScreen
 import com.rhinepereira.faithflow.ui.MainContainer
 import com.rhinepereira.faithflow.ui.theme.FaithFlowTheme
+import com.google.android.play.core.appupdate.AppUpdateManager
+import com.google.android.play.core.appupdate.AppUpdateManagerFactory
+import com.google.android.play.core.appupdate.AppUpdateOptions
+import com.google.android.play.core.install.InstallStateUpdatedListener
+import com.google.android.play.core.install.model.AppUpdateType
+import com.google.android.play.core.install.model.InstallStatus
+import com.google.android.play.core.install.model.UpdateAvailability
+import com.google.android.play.core.ktx.isFlexibleUpdateAllowed
+import com.google.android.play.core.ktx.isImmediateUpdateAllowed
+import com.google.firebase.ktx.Firebase
+import com.google.firebase.remoteconfig.FirebaseRemoteConfig
+import com.google.firebase.remoteconfig.ktx.remoteConfig
+import com.google.firebase.remoteconfig.ktx.remoteConfigSettings
+import android.widget.Toast
+import com.google.android.material.snackbar.Snackbar
 
 class MainActivity : ComponentActivity() {
     private var sharedText by mutableStateOf<String?>(null)
+    private lateinit var appUpdateManager: AppUpdateManager
+    private val updateRequestCode = 123
+    private lateinit var remoteConfig: FirebaseRemoteConfig
+
+    private val installStateUpdatedListener = InstallStateUpdatedListener { state ->
+        if (state.installStatus() == InstallStatus.DOWNLOADED) {
+            showUpdateSnackbar()
+        }
+    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        appUpdateManager = AppUpdateManagerFactory.create(this)
+        setupRemoteConfig()
         handleIntent(intent)
         
         enableEdgeToEdge()
@@ -99,6 +125,98 @@ class MainActivity : ComponentActivity() {
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
         handleIntent(intent)
+    }
+
+    private fun setupRemoteConfig() {
+        remoteConfig = Firebase.remoteConfig
+        val configSettings = remoteConfigSettings {
+            minimumFetchIntervalInSeconds = if (BuildConfig.DEBUG) 0 else 3600 // 1 hour for release
+        }
+        remoteConfig.setConfigSettingsAsync(configSettings)
+
+        val defaultValues = mapOf(
+            "latest_version_code" to BuildConfig.VERSION_CODE.toLong(),
+            "min_supported_version_code" to BuildConfig.VERSION_CODE.toLong(),
+            "force_update" to false
+        )
+        remoteConfig.setDefaultsAsync(defaultValues)
+
+        remoteConfig.fetchAndActivate().addOnCompleteListener(this) { task ->
+            if (task.isSuccessful) {
+                checkForUpdate()
+            }
+        }
+    }
+
+    private fun checkForUpdate() {
+        val latestVersion = remoteConfig.getLong("latest_version_code")
+        val minSupportedVersion = remoteConfig.getLong("min_supported_version_code")
+        val forceUpdate = remoteConfig.getBoolean("force_update")
+        val currentVersion = BuildConfig.VERSION_CODE.toLong()
+
+        appUpdateManager.appUpdateInfo.addOnSuccessListener { info ->
+            if (info.updateAvailability() == UpdateAvailability.UPDATE_AVAILABLE) {
+                when {
+                    currentVersion < minSupportedVersion || forceUpdate -> {
+                        if (info.isImmediateUpdateAllowed) {
+                            startUpdateFlow(info, AppUpdateType.IMMEDIATE)
+                        }
+                    }
+                    currentVersion < latestVersion -> {
+                        if (info.isFlexibleUpdateAllowed) {
+                            appUpdateManager.registerListener(installStateUpdatedListener)
+                            startUpdateFlow(info, AppUpdateType.FLEXIBLE)
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    private fun startUpdateFlow(info: com.google.android.play.core.appupdate.AppUpdateInfo, type: Int) {
+        appUpdateManager.startUpdateFlowForResult(
+            info,
+            this,
+            AppUpdateOptions.newBuilder(type).build(),
+            updateRequestCode
+        )
+    }
+
+    private fun showUpdateSnackbar() {
+        Snackbar.make(
+            findViewById(android.R.id.content),
+            "An update has just been downloaded.",
+            Snackbar.LENGTH_INDEFINITE
+        ).apply {
+            setAction("RESTART") { appUpdateManager.completeUpdate() }
+            show()
+        }
+    }
+
+    override fun onResume() {
+        super.onResume()
+        appUpdateManager.appUpdateInfo.addOnSuccessListener { info ->
+            if (info.updateAvailability() == UpdateAvailability.DEVELOPER_TRIGGERED_UPDATE_IN_PROGRESS) {
+                startUpdateFlow(info, AppUpdateType.IMMEDIATE)
+            } else if (info.installStatus() == InstallStatus.DOWNLOADED) {
+                showUpdateSnackbar()
+            }
+        }
+    }
+
+    override fun onDestroy() {
+        super.onDestroy()
+        appUpdateManager.unregisterListener(installStateUpdatedListener)
+    }
+
+    override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
+        super.onActivityResult(requestCode, resultCode, data)
+        if (requestCode == updateRequestCode) {
+            if (resultCode != RESULT_OK) {
+                // If update fails or is cancelled, re-evaluate if it's mandatory
+                checkForUpdate()
+            }
+        }
     }
 
     private fun handleIntent(intent: Intent?) {

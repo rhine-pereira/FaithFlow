@@ -37,8 +37,8 @@ android {
         applicationId = "com.rhinepereira.faithflow"
         minSdk = 24
         targetSdk = 36
-        versionCode = 5
-        versionName = "1.0-beta02"
+        versionCode = 6
+        versionName = "1.0-beta03"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
@@ -93,6 +93,11 @@ dependencies {
     implementation(platform(libs.firebase.bom))
     implementation(libs.firebase.auth)
     implementation(libs.firebase.auth.ktx)
+    implementation(libs.firebase.config)
+
+    // Play Core (App Update)
+    implementation(libs.play.app.update)
+    implementation(libs.play.app.update.ktx)
     
     // Ktor Engine (Required for Supabase)
     implementation(libs.ktor.client.android)
@@ -107,6 +112,9 @@ dependencies {
     
     // ViewModel Compose
     implementation(libs.androidx.lifecycle.viewmodel.compose)
+    
+    // Google Material (for Snackbar)
+    implementation(libs.google.android.material)
 
     testImplementation(libs.junit)
     androidTestImplementation(libs.androidx.junit)
