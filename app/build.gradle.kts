@@ -37,8 +37,8 @@ android {
         applicationId = "com.rhinepereira.faithflow"
         minSdk = 24
         targetSdk = 36
-        versionCode = 6
-        versionName = "1.0-beta03"
+        versionCode = 7
+        versionName = "1.1-beta01"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }

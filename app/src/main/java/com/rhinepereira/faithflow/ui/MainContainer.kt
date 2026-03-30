@@ -7,6 +7,7 @@ import androidx.compose.material.icons.filled.HistoryEdu
 import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.MoreVert
+import androidx.compose.material.icons.filled.DateRange
 import androidx.compose.material.icons.automirrored.filled.Logout
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -21,9 +22,9 @@ import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 
 sealed class Screen(val route: String, val title: String, val icon: androidx.compose.ui.graphics.vector.ImageVector) {
-    object Themes : Screen("themes", "Verse Themes", Icons.Default.Home)
-    object Daily : Screen("daily", "Daily", Icons.Default.HistoryEdu)
     object PersonalNotes : Screen("personal_notes", "Notes", Icons.Default.Bookmark)
+    object Themes : Screen("themes", "Themes", Icons.Default.Home)
+    object Daily : Screen("daily", "Daily", Icons.Default.HistoryEdu)
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -35,7 +36,7 @@ fun MainContainer(
     onDeleteAccount: () -> Unit = {}
 ) {
     val navController = rememberNavController()
-    val items = listOf(Screen.PersonalNotes, Screen.Daily, Screen.Themes)
+    val items = listOf(Screen.PersonalNotes, Screen.Themes, Screen.Daily)
     var showSignOutDialog by remember { mutableStateOf(false) }
     var showDeleteDialog by remember { mutableStateOf(false) }
     var showMenu by remember { mutableStateOf(false) }
@@ -148,9 +149,6 @@ fun MainContainer(
                     onSharedTextConsumed = onSharedTextConsumed
                 )
             }
-//            composable(Screen.Calendar.route) {
-//                CalendarScreen()
-//            }
             composable(Screen.Daily.route) {
                 DailyScreen()
             }
