@@ -4,16 +4,19 @@ import android.app.Application
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.rhinepereira.faithflow.data.*
+import com.rhinepereira.faithflow.util.DateUtils
+import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
 import java.util.*
 
+@OptIn(ExperimentalCoroutinesApi::class)
 class DailyViewModel(application: Application) : AndroidViewModel(application) {
     private val repository: VerseRepository
     private val dao: VerseDao
-    
+
     // State for the currently viewed date
-    private val _targetDate = MutableStateFlow(getStartOfDay(System.currentTimeMillis()))
+    private val _targetDate = MutableStateFlow(DateUtils.getStartOfDay())
     val targetDate: StateFlow<Long> = _targetDate.asStateFlow()
 
     private val _isSealing = MutableStateFlow(false)
@@ -26,16 +29,16 @@ class DailyViewModel(application: Application) : AndroidViewModel(application) {
         val database = AppDatabase.getDatabase(application)
         dao = database.verseDao()
         repository = VerseRepository(application, dao)
-        
+
         val authStatus = AuthRepository.authStatus
-        
+
         // Fetch record whenever targetDate or authStatus changes
         currentRecord = combine(authStatus, _targetDate) { status, date ->
             Pair(status, date)
         }.flatMapLatest { (status, date) ->
             when (status) {
                 is AuthStatus.Authenticated -> {
-                    val endOfDay = date + (24 * 60 * 60 * 1000)
+                    val endOfDay = date + DateUtils.MILLIS_PER_DAY
                     dao.getRecordForDate(status.userId, date, endOfDay)
                 }
                 else -> flowOf(null)
@@ -60,28 +63,18 @@ class DailyViewModel(application: Application) : AndroidViewModel(application) {
         )
     }
 
-    private fun getStartOfDay(timestamp: Long): Long {
-        val calendar = Calendar.getInstance()
-        calendar.timeInMillis = timestamp
-        calendar.set(Calendar.HOUR_OF_DAY, 0)
-        calendar.set(Calendar.MINUTE, 0)
-        calendar.set(Calendar.SECOND, 0)
-        calendar.set(Calendar.MILLISECOND, 0)
-        return calendar.timeInMillis
-    }
-
     fun setTargetDate(timestamp: Long) {
-        _targetDate.value = getStartOfDay(timestamp)
+        _targetDate.value = DateUtils.getStartOfDay(timestamp)
     }
 
     fun moveDate(days: Int) {
         val calendar = Calendar.getInstance()
         calendar.timeInMillis = _targetDate.value
         calendar.add(Calendar.DAY_OF_YEAR, days)
-        
-        val newDate = getStartOfDay(calendar.timeInMillis)
-        val today = getStartOfDay(System.currentTimeMillis())
-        
+
+        val newDate = DateUtils.getStartOfDay(calendar.timeInMillis)
+        val today = DateUtils.getStartOfDay()
+
         if (newDate <= today) {
             _targetDate.value = newDate
         }
@@ -97,12 +90,12 @@ class DailyViewModel(application: Application) : AndroidViewModel(application) {
         isSealed: Boolean? = null
     ) {
         val date = _targetDate.value
-        val endOfDay = date + (24 * 60 * 60 * 1000)
+        val endOfDay = date + DateUtils.MILLIS_PER_DAY
         val userId = AuthRepository.currentUserId ?: ""
         if (userId.isEmpty()) return
 
         val existing = dao.getRecordForDateSync(userId, date, endOfDay) ?: DailyRecord(date = date, userId = userId)
-        
+
         // Apply updates
         var updated = existing.copy(
             readToday = readToday ?: existing.readToday,
@@ -123,7 +116,7 @@ class DailyViewModel(application: Application) : AndroidViewModel(application) {
         if (!updated.prayedToday) {
             updated = updated.copy(totalPrayerTimeMinutes = 0)
         }
-        
+
         dao.insertDailyRecord(updated)
     }
 

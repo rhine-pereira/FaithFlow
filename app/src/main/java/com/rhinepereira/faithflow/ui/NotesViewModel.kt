@@ -4,21 +4,25 @@ import android.app.Application
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.rhinepereira.faithflow.data.*
-import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.SharingStarted
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flowOf
-import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
+import java.util.UUID
 
+/**
+ * ViewModel managing state and user actions for personal notes and note categories.
+ */
+@OptIn(ExperimentalCoroutinesApi::class)
 class NotesViewModel(application: Application) : AndroidViewModel(application) {
     private val repository: PersonalNoteRepository
     private val verseRepository: VerseRepository
     private val dao: VerseDao
 
-    
     val categories: StateFlow<List<PersonalNoteCategory>>
     val allPersonalNotes: StateFlow<List<PersonalNote>>
 
@@ -32,9 +36,7 @@ class NotesViewModel(application: Application) : AndroidViewModel(application) {
 
         categories = authStatus.flatMapLatest { status ->
             when (status) {
-                is AuthStatus.Authenticated -> {
-                    repository.getAllCategories(status.userId)
-                }
+                is AuthStatus.Authenticated -> repository.getAllCategories(status.userId)
                 else -> flowOf(emptyList())
             }
         }.stateIn(
@@ -55,8 +57,6 @@ class NotesViewModel(application: Application) : AndroidViewModel(application) {
         )
     }
 
-    fun getNotesForCategory(categoryId: String): Flow<List<PersonalNote>> = repository.getNotesForCategory(categoryId)
-
     fun addCategory(name: String) {
         viewModelScope.launch {
             repository.insertCategory(PersonalNoteCategory(name = name))
@@ -71,8 +71,8 @@ class NotesViewModel(application: Application) : AndroidViewModel(application) {
 
     fun updateNote(note: PersonalNote) {
         viewModelScope.launch {
-            if (note.id.isBlank() || note.id == "0") { // Check if new
-                 repository.insertNote(note.copy(id = java.util.UUID.randomUUID().toString()))
+            if (note.id.isBlank() || note.id == "0") {
+                repository.insertNote(note.copy(id = UUID.randomUUID().toString()))
             } else {
                 repository.updateNote(note)
             }
@@ -88,20 +88,6 @@ class NotesViewModel(application: Application) : AndroidViewModel(application) {
     fun deleteCategory(category: PersonalNoteCategory) {
         viewModelScope.launch {
             repository.deleteCategory(category)
-        }
-    }
-
-    fun moveCategory(categories: List<PersonalNoteCategory>, fromIndex: Int, toIndex: Int) {
-        if (fromIndex !in categories.indices || toIndex !in categories.indices || fromIndex == toIndex) {
-            return
-        }
-
-        viewModelScope.launch {
-            val reordered = categories.toMutableList().apply {
-                val moved = removeAt(fromIndex)
-                add(toIndex, moved)
-            }
-            repository.reorderCategories(reordered)
         }
     }
 

@@ -25,6 +25,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.zIndex
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.rhinepereira.faithflow.ui.components.ConfirmationDialog
 
 private enum class MainTab(val index: Int, val title: String, val icon: androidx.compose.ui.graphics.vector.ImageVector) {
     Notes(0, "Notes", Icons.Default.Bookmark),
@@ -209,50 +210,30 @@ fun MainContainer(
     }
 
     if (showSignOutDialog) {
-        AlertDialog(
-            onDismissRequest = { showSignOutDialog = false },
-            title = { Text("Sign Out", style = MaterialTheme.typography.headlineSmall, color = MaterialTheme.colorScheme.primary) },
-            text = { Text("Are you sure you want to sign out?") },
-            confirmButton = {
-                Button(
-                    onClick = {
-                        showSignOutDialog = false
-                        onSignOut()
-                    },
-                    colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary)
-                ) {
-                    Text("Sign Out", fontWeight = FontWeight.Bold)
-                }
+        ConfirmationDialog(
+            title = "Sign Out",
+            message = "Are you sure you want to sign out?",
+            confirmButtonText = "Sign Out",
+            isDestructive = false,
+            onConfirm = {
+                showSignOutDialog = false
+                onSignOut()
             },
-            dismissButton = {
-                TextButton(onClick = { showSignOutDialog = false }) {
-                    Text("Cancel", color = MaterialTheme.colorScheme.outline)
-                }
-            }
+            onDismiss = { showSignOutDialog = false }
         )
     }
 
     if (showDeleteDialog) {
-        AlertDialog(
-            onDismissRequest = { showDeleteDialog = false },
-            title = { Text("Delete Account", style = MaterialTheme.typography.headlineSmall, color = MaterialTheme.colorScheme.error) },
-            text = { Text("Are you sure you want to permanently delete your account? All your verses, notes, and themes will be erased.") },
-            confirmButton = {
-                Button(
-                    onClick = {
-                        showDeleteDialog = false
-                        onDeleteAccount()
-                    },
-                    colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error)
-                ) {
-                    Text("Delete", fontWeight = FontWeight.Bold)
-                }
+        ConfirmationDialog(
+            title = "Delete Account",
+            message = "Are you sure you want to permanently delete your account? All your verses, notes, and themes will be erased.",
+            confirmButtonText = "Delete",
+            isDestructive = true,
+            onConfirm = {
+                showDeleteDialog = false
+                onDeleteAccount()
             },
-            dismissButton = {
-                TextButton(onClick = { showDeleteDialog = false }) {
-                    Text("Cancel", color = MaterialTheme.colorScheme.outline)
-                }
-            }
+            onDismiss = { showDeleteDialog = false }
         )
     }
 }

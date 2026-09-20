@@ -1,8 +1,6 @@
 package com.rhinepereira.faithflow.ui
 
 import androidx.activity.compose.BackHandler
-import androidx.compose.foundation.BorderStroke
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectDragGesturesAfterLongPress
 import androidx.compose.foundation.gestures.scrollBy
 import androidx.compose.foundation.layout.*
@@ -10,15 +8,12 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.itemsIndexed
+import androidx.compose.foundation.lazy.grid.rememberLazyGridState
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.filled.Delete
-import androidx.compose.material.icons.filled.DragHandle
 import androidx.compose.material.icons.filled.Edit
-import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -26,23 +21,28 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.pointerInput
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
-import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.input.KeyboardType
-import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.window.DialogProperties
-import androidx.compose.ui.window.PopupProperties
 import androidx.compose.ui.zIndex
 import androidx.lifecycle.viewmodel.compose.viewModel
-import com.rhinepereira.faithflow.data.BibleData
-import com.rhinepereira.faithflow.data.BibleDatabaseHelper
 import com.rhinepereira.faithflow.data.Note
 import com.rhinepereira.faithflow.data.NoteWithVerses
 import com.rhinepereira.faithflow.data.Verse
+import com.rhinepereira.faithflow.ui.components.DeleteConfirmationDialog
+import com.rhinepereira.faithflow.ui.components.RenameThemeDialog
+import com.rhinepereira.faithflow.ui.verse.AddNoteDialog
+import com.rhinepereira.faithflow.ui.verse.AddVerseDialog
+import com.rhinepereira.faithflow.ui.verse.EditVerseDialog
+import com.rhinepereira.faithflow.ui.verse.SharedTextDialog
+import com.rhinepereira.faithflow.ui.verse.ThemeCard
+import com.rhinepereira.faithflow.ui.verse.VerseItem
+import com.rhinepereira.faithflow.ui.verse.move
 import kotlinx.coroutines.launch
 
+/**
+ * Screen displaying thematic collections of Bible verses in a reorderable grid,
+ * with navigation to full verse lists for each theme.
+ */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun VerseScreen(
@@ -56,7 +56,7 @@ fun VerseScreen(
     var showAddVerseDialog by remember { mutableStateOf(false) }
     var showSharedTextDialog by remember { mutableStateOf(false) }
     var verseToEdit by remember { mutableStateOf<Verse?>(null) }
-    
+
     // Deletion confirmation states
     var noteToDelete by remember { mutableStateOf<Note?>(null) }
     var noteToRename by remember { mutableStateOf<Note?>(null) }
@@ -69,7 +69,7 @@ fun VerseScreen(
     var accumulatedDrag by remember { mutableStateOf(Offset.Zero) }
     val density = LocalDensity.current
     val scope = rememberCoroutineScope()
-    val gridState = androidx.compose.foundation.lazy.grid.rememberLazyGridState()
+    val gridState = rememberLazyGridState()
 
     LaunchedEffect(notesWithVerses, draggedThemeId) {
         if (draggedThemeId == null) {
@@ -85,15 +85,15 @@ fun VerseScreen(
 
     Scaffold(
         topBar = {
-            if (selectedNoteWithVerses != null) {
+            selectedNoteWithVerses?.let { currentNoteWithVerses ->
                 TopAppBar(
                     title = {
                         Row(
                             verticalAlignment = Alignment.CenterVertically,
                             horizontalArrangement = Arrangement.spacedBy(4.dp)
                         ) {
-                            Text(selectedNoteWithVerses?.note?.theme ?: "")
-                            IconButton(onClick = { noteToRename = selectedNoteWithVerses?.note }) {
+                            Text(currentNoteWithVerses.note.theme)
+                            IconButton(onClick = { noteToRename = currentNoteWithVerses.note }) {
                                 Icon(Icons.Default.Edit, contentDescription = "Rename Theme", modifier = Modifier.size(18.dp))
                             }
                         }
@@ -110,15 +110,15 @@ fun VerseScreen(
             FloatingActionButton(
                 onClick = {
                     if (selectedNoteWithVerses == null) showAddNoteDialog = true else showAddVerseDialog = true
-                },
-                modifier = Modifier
+                }
             ) {
                 Icon(Icons.Default.Add, contentDescription = "Add")
             }
         }
     ) { padding ->
         Box(modifier = Modifier.padding(padding)) {
-            if (selectedNoteWithVerses == null) {
+            val currentSelectedTheme = selectedNoteWithVerses
+            if (currentSelectedTheme == null) {
                 // Themes Grid
                 val displayedThemes = if (orderedNotesWithVerses.isEmpty() && notesWithVerses.isNotEmpty()) {
                     viewModel.applySavedThemeOrder(notesWithVerses)
@@ -236,7 +236,7 @@ fun VerseScreen(
                 }
             } else {
                 // Verses List for selected Theme
-                val verses = viewModel.getVersesForNote(selectedNoteWithVerses!!.note.id)
+                val verses = viewModel.getVersesForNote(currentSelectedTheme.note.id)
                     .collectAsStateWhenVisible(isVisible, emptyList())
                 BackHandler { selectedNoteWithVerses = null }
 
@@ -267,21 +267,23 @@ fun VerseScreen(
         }
 
         if (showAddVerseDialog && selectedNoteWithVerses != null) {
-            AddVerseDialog(
-                onDismiss = { showAddVerseDialog = false },
-                onConfirm = { reference, content ->
-                    viewModel.addVerse(selectedNoteWithVerses!!.note.id, reference, content)
-                    showAddVerseDialog = false
-                }
-            )
+            selectedNoteWithVerses?.let { currentTheme ->
+                AddVerseDialog(
+                    onDismiss = { showAddVerseDialog = false },
+                    onConfirm = { reference, content ->
+                        viewModel.addVerse(currentTheme.note.id, reference, content)
+                        showAddVerseDialog = false
+                    }
+                )
+            }
         }
 
-        if (verseToEdit != null) {
+        verseToEdit?.let { currentVerse ->
             EditVerseDialog(
-                verse = verseToEdit!!,
+                verse = currentVerse,
                 onDismiss = { verseToEdit = null },
                 onConfirm = { updatedReference, updatedContent ->
-                    viewModel.updateVerse(verseToEdit!!.copy(reference = updatedReference, content = updatedContent))
+                    viewModel.updateVerse(currentVerse.copy(reference = updatedReference, content = updatedContent))
                     verseToEdit = null
                 }
             )
@@ -299,7 +301,7 @@ fun VerseScreen(
                     if (noteId != null) {
                         viewModel.addVerse(noteId, reference, content)
                     } else if (themeName != null) {
-                        viewModel.addNoteAndVerse(themeName, reference, content)
+                        viewModel.addNoteWithInitialVerse(themeName, reference, content)
                     }
                     showSharedTextDialog = false
                     onSharedTextConsumed()
@@ -313,7 +315,7 @@ fun VerseScreen(
                 onDismiss = { noteToRename = null },
                 onConfirm = { newName ->
                     viewModel.renameNote(note, newName)
-                    // Update selectedNoteWithVerses if this note is currently selected
+                    // If current open theme is the one being renamed, update the screen state as well
                     if (selectedNoteWithVerses?.note?.id == note.id) {
                         selectedNoteWithVerses = selectedNoteWithVerses?.copy(
                             note = note.copy(theme = newName)
@@ -348,627 +350,5 @@ fun VerseScreen(
                 onDismiss = { verseToDelete = null }
             )
         }
-    }
-}
-
-@Composable
-fun RenameThemeDialog(currentName: String, onDismiss: () -> Unit, onConfirm: (String) -> Unit) {
-    var name by remember { mutableStateOf(currentName) }
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = { Text("Rename Theme", style = MaterialTheme.typography.headlineSmall, color = MaterialTheme.colorScheme.primary) },
-        text = {
-            OutlinedTextField(
-                value = name,
-                onValueChange = { name = it },
-                label = { Text("Theme Name") },
-                modifier = Modifier.fillMaxWidth(),
-                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Text),
-                singleLine = true,
-                colors = OutlinedTextFieldDefaults.colors(
-                    focusedBorderColor = MaterialTheme.colorScheme.primary,
-                    unfocusedBorderColor = MaterialTheme.colorScheme.outline
-                )
-            )
-        },
-        confirmButton = {
-            Button(
-                onClick = { if (name.isNotBlank()) onConfirm(name) },
-                colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary)
-            ) { 
-                Text("Rename", fontWeight = FontWeight.Bold) 
-            }
-        },
-        dismissButton = {
-            TextButton(onClick = onDismiss) { 
-                Text("Cancel", color = MaterialTheme.colorScheme.outline) 
-            }
-        }
-    )
-}
-
-@Composable
-fun DeleteConfirmationDialog(
-    title: String,
-    message: String,
-    onConfirm: () -> Unit,
-    onDismiss: () -> Unit
-) {
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = { Text(title, style = MaterialTheme.typography.headlineSmall, color = MaterialTheme.colorScheme.error) },
-        text = { Text(message) },
-        confirmButton = {
-            Button(
-                onClick = onConfirm,
-                colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error)
-            ) {
-                Text("Delete", fontWeight = FontWeight.Bold)
-            }
-        },
-        dismissButton = {
-            TextButton(onClick = onDismiss) {
-                Text("Cancel", color = MaterialTheme.colorScheme.outline)
-            }
-        }
-    )
-}
-
-@Composable
-fun EditVerseDialog(
-    verse: Verse,
-    onDismiss: () -> Unit,
-    onConfirm: (String, String) -> Unit
-) {
-    var reference by remember { mutableStateOf(verse.reference) }
-    var content by remember { mutableStateOf(verse.content) }
-
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = { Text("Edit Verse", style = MaterialTheme.typography.headlineSmall, color = MaterialTheme.colorScheme.primary) },
-        text = {
-            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                OutlinedTextField(
-                    value = reference,
-                    onValueChange = { reference = it },
-                    label = { Text("Reference") },
-                    modifier = Modifier.fillMaxWidth(),
-                    colors = OutlinedTextFieldDefaults.colors(
-                        focusedBorderColor = MaterialTheme.colorScheme.primary
-                    )
-                )
-                OutlinedTextField(
-                    value = content,
-                    onValueChange = { content = it },
-                    label = { Text("Content") },
-                    modifier = Modifier.fillMaxWidth(),
-                    minLines = 3,
-                    colors = OutlinedTextFieldDefaults.colors(
-                        focusedBorderColor = MaterialTheme.colorScheme.primary
-                    )
-                )
-            }
-        },
-        confirmButton = {
-            Button(
-                onClick = { if (reference.isNotBlank() && content.isNotBlank()) onConfirm(reference, content) },
-                colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary)
-            ) {
-                Text("Save", fontWeight = FontWeight.Bold)
-            }
-        },
-        dismissButton = {
-            TextButton(onClick = onDismiss) {
-                Text("Cancel", color = MaterialTheme.colorScheme.outline)
-            }
-        }
-    )
-}
-
-@Composable
-fun SharedTextDialog(
-    sharedText: String,
-    themes: List<Note>,
-    onDismiss: () -> Unit,
-    onConfirm: (String?, String?, String, String) -> Unit
-) {
-    var selectedNoteId by remember { mutableStateOf<String?>(themes.firstOrNull()?.id) }
-    var newThemeName by remember { mutableStateOf("") }
-    var isNewTheme by remember { mutableStateOf(themes.isEmpty()) }
-
-    // Parsing logic
-    val lines = sharedText.lines().filter { it.isNotBlank() }
-    var reference = lines.firstOrNull() ?: ""
-    
-    // Remove Bible version (e.g., "RSV-C", "NIV", "KJV") from the end of the first line
-    // This matches common 3-5 letter abbreviations at the end of the reference
-    reference = reference.replace(Regex("\\s+[A-Z0-9-]{2,}$"), "").trim()
-    
-    val content = lines.drop(1).filter { !it.startsWith("http") }.joinToString("\n").trim()
-
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = { Text("Import Shared Verse", style = MaterialTheme.typography.headlineSmall, color = MaterialTheme.colorScheme.primary) },
-        text = {
-            Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
-                Text("Reference: $reference", fontWeight = FontWeight.Bold, style = MaterialTheme.typography.titleMedium)
-                Text(content, maxLines = 3, overflow = TextOverflow.Ellipsis, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                
-                HorizontalDivider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.2f))
-                
-                Text("Choose Theme", style = MaterialTheme.typography.titleSmall, color = MaterialTheme.colorScheme.primary)
-                
-                if (themes.isNotEmpty()) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        RadioButton(
-                            selected = !isNewTheme, 
-                            onClick = { isNewTheme = false },
-                            colors = RadioButtonDefaults.colors(selectedColor = MaterialTheme.colorScheme.primary)
-                        )
-                        Text("Existing Theme", modifier = Modifier.clickable { isNewTheme = false }, style = MaterialTheme.typography.bodyLarge)
-                    }
-                    
-                    if (!isNewTheme) {
-                        var expanded by remember { mutableStateOf(false) }
-                        val selectedNote = themes.find { it.id == selectedNoteId }
-                        
-                        Box {
-                            OutlinedButton(
-                                onClick = { expanded = true }, 
-                                modifier = Modifier.fillMaxWidth(),
-                                border = BorderStroke(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.5f))
-                            ) {
-                                Text(selectedNote?.theme ?: "Select Theme", color = MaterialTheme.colorScheme.primary)
-                            }
-                            DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
-                                themes.forEach { note ->
-                                    DropdownMenuItem(
-                                        text = { Text(note.theme) },
-                                        onClick = {
-                                            selectedNoteId = note.id
-                                            expanded = false
-                                        }
-                                    )
-                                }
-                            }
-                        }
-                    }
-                }
-
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    RadioButton(
-                        selected = isNewTheme, 
-                        onClick = { isNewTheme = true },
-                        colors = RadioButtonDefaults.colors(selectedColor = MaterialTheme.colorScheme.primary)
-                    )
-                    Text("Create New Theme", modifier = Modifier.clickable { isNewTheme = true }, style = MaterialTheme.typography.bodyLarge)
-                }
-                
-                if (isNewTheme) {
-                    OutlinedTextField(
-                        value = newThemeName,
-                        onValueChange = { newThemeName = it },
-                        label = { Text("New Theme Name") },
-                        modifier = Modifier.fillMaxWidth(),
-                        colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = MaterialTheme.colorScheme.primary)
-                    )
-                }
-            }
-        },
-        confirmButton = {
-            Button(
-                onClick = {
-                    if (isNewTheme) {
-                        if (newThemeName.isNotBlank()) onConfirm(null, newThemeName, reference, content)
-                    } else {
-                        onConfirm(selectedNoteId, null, reference, content)
-                    }
-                },
-                colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary)
-            ) {
-                Text("Import", fontWeight = FontWeight.Bold)
-            }
-        },
-        dismissButton = {
-            TextButton(onClick = onDismiss) { 
-                Text("Cancel", color = MaterialTheme.colorScheme.outline) 
-            }
-        }
-    )
-}
-
-@Composable
-fun ThemeCard(
-    noteWithVerses: NoteWithVerses,
-    onClick: () -> Unit,
-    onDelete: () -> Unit,
-    onRename: () -> Unit,
-    modifier: Modifier = Modifier,
-    isDragging: Boolean = false
-) {
-    Card(
-        modifier = modifier
-            .fillMaxWidth()
-            .height(180.dp)
-            .clickable(enabled = !isDragging) { onClick() },
-        elevation = CardDefaults.cardElevation(defaultElevation = if (isDragging) 10.dp else 2.dp),
-        colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.surface
-        ),
-        border = BorderStroke(
-            if (isDragging) 1.dp else 0.5.dp,
-            if (isDragging) MaterialTheme.colorScheme.primary.copy(alpha = 0.65f)
-            else MaterialTheme.colorScheme.primary.copy(alpha = 0.3f)
-        )
-    ) {
-        Column(modifier = Modifier.padding(16.dp)) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.Top
-            ) {
-                if (isDragging) {
-                    Icon(
-                        imageVector = Icons.Default.DragHandle,
-                        contentDescription = "Dragging",
-                        tint = MaterialTheme.colorScheme.primary.copy(alpha = 0.7f),
-                        modifier = Modifier
-                            .padding(end = 6.dp)
-                            .size(18.dp)
-                    )
-                }
-                Text(
-                    text = noteWithVerses.note.theme,
-                    style = MaterialTheme.typography.titleLarge,
-                    fontWeight = FontWeight.Bold,
-                    color = MaterialTheme.colorScheme.primary,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                    modifier = Modifier.weight(1f)
-                )
-            }
-            
-            Spacer(modifier = Modifier.height(12.dp))
-            
-            val recentVerses = noteWithVerses.verses.sortedByDescending { it.createdAt }.take(2)
-            if (recentVerses.isEmpty()) {
-                Text(
-                    "No verses yet",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.outline
-                )
-            } else {
-                recentVerses.forEach { verse ->
-                    Column(modifier = Modifier.padding(bottom = 6.dp)) {
-                        Text(
-                            text = verse.reference,
-                            style = MaterialTheme.typography.labelSmall,
-                            fontWeight = FontWeight.SemiBold,
-                            color = MaterialTheme.colorScheme.primary
-                        )
-                        Text(
-                            text = verse.content,
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurface,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis
-                        )
-                    }
-                }
-            }
-            
-            Spacer(modifier = Modifier.weight(1f))
-            
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.End,
-                verticalAlignment = Alignment.Bottom
-            ) {
-                IconButton(
-                    onClick = onRename,
-                    modifier = Modifier.size(28.dp)
-                ) {
-                    Icon(
-                        Icons.Default.Edit,
-                        contentDescription = "Rename Theme",
-                        tint = MaterialTheme.colorScheme.outline,
-                        modifier = Modifier.size(18.dp)
-                    )
-                }
-                Spacer(modifier = Modifier.width(4.dp))
-                IconButton(
-                    onClick = onDelete,
-                    modifier = Modifier.size(28.dp)
-                ) {
-                    Icon(
-                        Icons.Default.Delete,
-                        contentDescription = "Delete Theme",
-                        tint = MaterialTheme.colorScheme.error.copy(alpha = 0.7f),
-                        modifier = Modifier.size(18.dp)
-                    )
-                }
-            }
-        }
-    }
-}
-
-private fun <T> MutableList<T>.move(fromIndex: Int, toIndex: Int) {
-    if (fromIndex == toIndex) return
-    val item = removeAt(fromIndex)
-    add(toIndex, item)
-}
-
-@Composable
-fun VerseItem(verse: Verse, onDelete: () -> Unit, onEdit: () -> Unit) {
-    Card(
-        modifier = Modifier.fillMaxWidth(),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
-    ) {
-        Column(modifier = Modifier.padding(16.dp)) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Text(
-                    text = verse.reference,
-                    style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.Bold
-                )
-                Row {
-                    IconButton(onClick = onEdit) {
-                        Icon(Icons.Default.Edit, contentDescription = "Edit Verse")
-                    }
-                    IconButton(onClick = onDelete) {
-                        Icon(Icons.Default.Delete, contentDescription = "Delete Verse")
-                    }
-                }
-            }
-            Spacer(modifier = Modifier.height(8.dp))
-            Text(
-                text = verse.content,
-                style = MaterialTheme.typography.bodyLarge
-            )
-        }
-    }
-}
-
-@Composable
-fun AddNoteDialog(onDismiss: () -> Unit, onConfirm: (String) -> Unit) {
-    var theme by remember { mutableStateOf("") }
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = { Text("New Theme") },
-        text = {
-            TextField(value = theme, onValueChange = { theme = it }, label = { Text("Theme (e.g. Faith, Hope)") })
-        },
-        confirmButton = {
-            Button(onClick = { if (theme.isNotBlank()) onConfirm(theme) }) { Text("Add") }
-        },
-        dismissButton = {
-            TextButton(onClick = onDismiss) { Text("Cancel") }
-        }
-    )
-}
-
-@Composable
-fun AddVerseDialog(onDismiss: () -> Unit, onConfirm: (String, String) -> Unit) {
-    val context = LocalContext.current
-    val bibleHelper = remember { BibleDatabaseHelper(context) }
-    
-    var bookInput by remember { mutableStateOf("") }
-    var filteredBooks by remember { mutableStateOf(emptyList<String>()) }
-    var expanded by remember { mutableStateOf(false) }
-    
-    var chapter by remember { mutableStateOf("") }
-    var verseStart by remember { mutableStateOf("") }
-    var verseEnd by remember { mutableStateOf("") }
-    var content by remember { mutableStateOf("") }
-    
-    var showVerseFetchConfirmation by remember { mutableStateOf<String?>(null) }
-    var showVerseNotFound by remember { mutableStateOf(false) }
-
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        properties = DialogProperties(usePlatformDefaultWidth = false),
-        modifier = Modifier.padding(16.dp),
-        title = { Text("Add Bible Verse", style = MaterialTheme.typography.headlineSmall, color = MaterialTheme.colorScheme.primary) },
-        text = {
-            Column(verticalArrangement = Arrangement.spacedBy(12.dp), modifier = Modifier.fillMaxWidth()) {
-                // Book Selection with Search Suggestion
-                Box(modifier = Modifier.fillMaxWidth()) {
-                    OutlinedTextField(
-                        value = bookInput,
-                        onValueChange = {
-                            bookInput = it
-                            filteredBooks = if (it.isEmpty()) {
-                                emptyList()
-                            } else {
-                                BibleData.catholicBooks.filter { book ->
-                                    book.contains(it, ignoreCase = true)
-                                }
-                            }
-                            expanded = filteredBooks.isNotEmpty()
-                        },
-                        label = { Text("Book") },
-                        modifier = Modifier.fillMaxWidth(),
-                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Text),
-                        colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = MaterialTheme.colorScheme.primary)
-                    )
-                    
-                    DropdownMenu(
-                        expanded = expanded,
-                        onDismissRequest = { expanded = false },
-                        properties = PopupProperties(focusable = false),
-                        modifier = Modifier.fillMaxWidth(0.8f) // Avoid covering whole screen
-                    ) {
-                        filteredBooks.take(5).forEach { book ->
-                            DropdownMenuItem(
-                                text = { Text(book) },
-                                onClick = {
-                                    bookInput = book
-                                    expanded = false
-                                }
-                            )
-                        }
-                    }
-                }
-
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    OutlinedTextField(
-                        value = chapter,
-                        onValueChange = { if (it.all { char -> char.isDigit() }) chapter = it },
-                        label = { Text("Ch.") },
-                        modifier = Modifier.weight(1f),
-                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                        colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = MaterialTheme.colorScheme.primary)
-                    )
-                    OutlinedTextField(
-                        value = verseStart,
-                        onValueChange = { if (it.all { char -> char.isDigit() }) verseStart = it },
-                        label = { Text("Ver.") },
-                        modifier = Modifier.weight(1f),
-                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                        colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = MaterialTheme.colorScheme.primary)
-                    )
-                    OutlinedTextField(
-                        value = verseEnd,
-                        onValueChange = { if (it.all { char -> char.isDigit() }) verseEnd = it },
-                        label = { Text("End") },
-                        placeholder = { Text("-") },
-                        modifier = Modifier.weight(1f),
-                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                        colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = MaterialTheme.colorScheme.primary)
-                    )
-                }
-
-                OutlinedTextField(
-                    value = content,
-                    onValueChange = { content = it },
-                    label = { Text("Verse Content") },
-                    minLines = 3,
-                    modifier = Modifier.fillMaxWidth(),
-                    colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = MaterialTheme.colorScheme.primary)
-                )
-                
-                Button(
-                    onClick = {
-                        val c = chapter.toIntOrNull()
-                        val v = verseStart.toIntOrNull()
-                        val ve = verseEnd.toIntOrNull()
-                        if (bookInput.isNotBlank() && c != null && v != null) {
-                            val fetched = bibleHelper.getVerseRange(bookInput, c, v, ve)
-                            if (fetched != null) {
-                                showVerseFetchConfirmation = fetched
-                            } else {
-                                showVerseNotFound = true
-                            }
-                        }
-                    },
-                    modifier = Modifier.fillMaxWidth(),
-                    enabled = bookInput.isNotBlank() && chapter.isNotBlank() && verseStart.isNotBlank(),
-                    colors = ButtonDefaults.buttonColors(
-                        containerColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.1f),
-                        contentColor = MaterialTheme.colorScheme.primary
-                    ),
-                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.3f))
-                ) {
-                    Row(
-                        horizontalArrangement = Arrangement.spacedBy(8.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Icon(
-                            Icons.Default.Search, 
-                            contentDescription = "Search Bible",
-                            modifier = Modifier.size(18.dp)
-                        )
-                        Text("Fetch from Bible, RSV", fontWeight = FontWeight.SemiBold)
-                    }
-                }
-            }
-        },
-        confirmButton = {
-            Button(
-                onClick = {
-                    if (bookInput.isNotBlank() && chapter.isNotBlank() && verseStart.isNotBlank() && content.isNotBlank()) {
-                        val ref = if (verseEnd.isBlank()) {
-                            "$bookInput $chapter:$verseStart"
-                        } else {
-                            "$bookInput $chapter:$verseStart-$verseEnd"
-                        }
-                        onConfirm(ref, content)
-                    }
-                },
-                colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary)
-            ) { 
-                Text("Add", fontWeight = FontWeight.Bold) 
-            }
-        },
-        dismissButton = {
-            TextButton(onClick = onDismiss) { 
-                Text("Cancel", color = MaterialTheme.colorScheme.outline) 
-            }
-        }
-    )
-    
-    showVerseFetchConfirmation?.let { fetchedContent ->
-        AlertDialog(
-            onDismissRequest = { showVerseFetchConfirmation = null },
-            title = { Text("Use this verse content?", style = MaterialTheme.typography.headlineSmall, color = MaterialTheme.colorScheme.primary) },
-            text = { Text(fetchedContent, style = MaterialTheme.typography.bodyLarge) },
-            confirmButton = {
-                Button(
-                    onClick = {
-                        content = fetchedContent
-                        showVerseFetchConfirmation = null
-                    },
-                    colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary)
-                ) { 
-                    Text("Yes, use it", fontWeight = FontWeight.Bold) 
-                }
-            },
-            dismissButton = {
-                TextButton(onClick = { showVerseFetchConfirmation = null }) { 
-                    Text("No", color = MaterialTheme.colorScheme.outline) 
-                }
-            }
-        )
-    }
-    
-    // Verse Not Found Dialog
-    if (showVerseNotFound) {
-        AlertDialog(
-            onDismissRequest = { showVerseNotFound = false },
-            title = { 
-                Text(
-                    "Verse Not Found", 
-                    style = MaterialTheme.typography.headlineSmall, 
-                    color = MaterialTheme.colorScheme.error
-                ) 
-            },
-            text = { 
-                Column(
-                    verticalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    Text(
-                        "We couldn't find the verse you're looking for.",
-                        style = MaterialTheme.typography.bodyLarge
-                    )
-                    Text(
-                        "If you think this is a mistake, please contact us.",
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                }
-            },
-            confirmButton = {
-                Button(
-                    onClick = { showVerseNotFound = false },
-                    colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error)
-                ) { 
-                    Text("OK", fontWeight = FontWeight.Bold) 
-                }
-            }
-        )
     }
 }

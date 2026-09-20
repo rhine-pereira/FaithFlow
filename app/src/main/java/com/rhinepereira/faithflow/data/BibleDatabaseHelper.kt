@@ -3,9 +3,10 @@ package com.rhinepereira.faithflow.data
 import android.content.Context
 import android.database.sqlite.SQLiteDatabase
 import java.io.FileOutputStream
-import java.io.InputStream
-import java.io.OutputStream
 
+/**
+ * Helper for reading verses from the bundled Catholic Bible SQLite database assets (`bible.db`).
+ */
 class BibleDatabaseHelper(private val context: Context) {
 
     private val dbName = "bible.db"
@@ -44,15 +45,15 @@ class BibleDatabaseHelper(private val context: Context) {
                         ORDER BY v.verse ASC
                     """.trimIndent()
                     val params = arrayOf(name, chapter.toString())
-                    val cursor = db.rawQuery(query, params)
                     var found = false
-                    while (cursor.moveToNext()) {
-                        val verseNum = cursor.getInt(0)
-                        val text = cursor.getString(1)
-                        results.add("${toSuperscript(verseNum)} $text")
-                        found = true
+                    db.rawQuery(query, params).use { cursor ->
+                        while (cursor.moveToNext()) {
+                            val verseNum = cursor.getInt(0)
+                            val text = cursor.getString(1)
+                            results.add("${toSuperscript(verseNum)} $text")
+                            found = true
+                        }
                     }
-                    cursor.close()
                     if (found) break
                 }
             } else {
@@ -61,7 +62,7 @@ class BibleDatabaseHelper(private val context: Context) {
                     for (name in searchNames) {
                         val query: String
                         val params: Array<String>
-                        
+
                         if (end == null || end <= start) {
                             query = """
                                 SELECT v.verse, v.text 
@@ -81,14 +82,14 @@ class BibleDatabaseHelper(private val context: Context) {
                             params = arrayOf(name, chapter.toString(), start.toString(), end.toString())
                         }
 
-                        val cursor = db.rawQuery(query, params)
-                        while (cursor.moveToNext()) {
-                            val verseNum = cursor.getInt(0)
-                            val text = cursor.getString(1)
-                            results.add("${toSuperscript(verseNum)} $text")
-                            foundForThisRange = true
+                        db.rawQuery(query, params).use { cursor ->
+                            while (cursor.moveToNext()) {
+                                val verseNum = cursor.getInt(0)
+                                val text = cursor.getString(1)
+                                results.add("${toSuperscript(verseNum)} $text")
+                                foundForThisRange = true
+                            }
                         }
-                        cursor.close()
                         if (foundForThisRange) break
                     }
                 }
@@ -98,7 +99,7 @@ class BibleDatabaseHelper(private val context: Context) {
         } finally {
             db.close()
         }
-        
+
         return if (results.isNotEmpty()) results.joinToString("\n") else null
     }
 
@@ -120,16 +121,11 @@ class BibleDatabaseHelper(private val context: Context) {
     }
 
     private fun copyDatabase() {
-        val input: InputStream = context.assets.open(dbName)
         val outFileName = context.getDatabasePath(dbName).path
-        val output: OutputStream = FileOutputStream(outFileName)
-        val buffer = ByteArray(1024)
-        var length: Int
-        while (input.read(buffer).also { length = it } > 0) {
-            output.write(buffer, 0, length)
+        context.assets.open(dbName).use { input ->
+            FileOutputStream(outFileName).use { output ->
+                input.copyTo(output)
+            }
         }
-        output.flush()
-        output.close()
-        input.close()
     }
 }

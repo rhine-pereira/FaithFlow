@@ -4,12 +4,15 @@ import android.content.Context
 import androidx.work.CoroutineWorker
 import androidx.work.WorkerParameters
 import com.rhinepereira.faithflow.data.AppDatabase
+import com.rhinepereira.faithflow.data.AuthRepository
 import com.rhinepereira.faithflow.data.SupabaseConfig
-import com.google.firebase.auth.FirebaseAuth
 import io.github.jan.supabase.postgrest.postgrest
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
+/**
+ * WorkManager worker that synchronizes unsynced local data with Supabase.
+ */
 class SyncWorker(
     appContext: Context,
     workerParams: WorkerParameters
@@ -20,77 +23,94 @@ class SyncWorker(
         val dao = database.verseDao()
 
         // Get current user ID - skip sync if not authenticated
-        val userId = FirebaseAuth.getInstance().currentUser?.uid
+        val userId = AuthRepository.currentUserId
             ?: return@withContext Result.retry()
 
         try {
             // 1. Sync Notes (Themes)
-            val unsyncedNotes = dao.getUnsyncedNotes()
-            unsyncedNotes.forEach { note ->
-                if (note.isDeleted) {
-                    SupabaseConfig.client.postgrest["notes"].delete {
-                        filter { eq("id", note.id) }
-                    }
-                    dao.deleteNote(note)
-                } else {
-                    SupabaseConfig.client.postgrest["notes"].upsert(note.copy(userId = userId))
-                    dao.updateNote(note.copy(isSynced = true, userId = userId))
-                }
-            }
+            syncEntities(
+                tableName = "notes",
+                entities = dao.getUnsyncedNotes(),
+                getId = { it.id },
+                isDeleted = { it.isDeleted },
+                withUserAndSynced = { item, uid -> item.copy(userId = uid, isSynced = true) },
+                deleteLocal = { dao.deleteNote(it) },
+                saveLocal = { dao.updateNote(it) },
+                userId = userId
+            )
 
             // 2. Sync Verses
-            val unsyncedVerses = dao.getUnsyncedVerses()
-            unsyncedVerses.forEach { verse ->
-                if (verse.isDeleted) {
-                    SupabaseConfig.client.postgrest["verses"].delete {
-                        filter { eq("id", verse.id) }
-                    }
-                    dao.deleteVerse(verse)
-                } else {
-                    SupabaseConfig.client.postgrest["verses"].upsert(verse.copy(userId = userId))
-                    dao.updateVerse(verse.copy(isSynced = true, userId = userId))
-                }
-            }
+            syncEntities(
+                tableName = "verses",
+                entities = dao.getUnsyncedVerses(),
+                getId = { it.id },
+                isDeleted = { it.isDeleted },
+                withUserAndSynced = { item, uid -> item.copy(userId = uid, isSynced = true) },
+                deleteLocal = { dao.deleteVerse(it) },
+                saveLocal = { dao.updateVerse(it) },
+                userId = userId
+            )
 
-            // 4. Sync Personal Note Categories
-            val unsyncedCategories = dao.getUnsyncedCategories()
-            unsyncedCategories.forEach { category ->
-                if (category.isDeleted) {
-                    SupabaseConfig.client.postgrest["personal_note_categories"].delete {
-                        filter { eq("id", category.id) }
-                    }
-                    dao.deleteCategory(category)
-                } else {
-                    SupabaseConfig.client.postgrest["personal_note_categories"].upsert(category.copy(userId = userId))
-                    dao.insertCategory(category.copy(isSynced = true, userId = userId))
-                }
-            }
+            // 3. Sync Personal Note Categories
+            syncEntities(
+                tableName = "personal_note_categories",
+                entities = dao.getUnsyncedCategories(),
+                getId = { it.id },
+                isDeleted = { it.isDeleted },
+                withUserAndSynced = { item, uid -> item.copy(userId = uid, isSynced = true) },
+                deleteLocal = { dao.deleteCategory(it) },
+                saveLocal = { dao.insertCategory(it) },
+                userId = userId
+            )
 
-            // 5. Sync Personal Notes
-            val unsyncedPersonalNotes = dao.getUnsyncedPersonalNotes()
-            unsyncedPersonalNotes.forEach { note ->
-                if (note.isDeleted) {
-                    SupabaseConfig.client.postgrest["personal_notes"].delete {
-                        filter { eq("id", note.id) }
-                    }
-                    dao.deletePersonalNote(note)
-                } else {
-                    SupabaseConfig.client.postgrest["personal_notes"].upsert(note.copy(userId = userId))
-                    dao.insertPersonalNote(note.copy(isSynced = true, userId = userId))
-                }
-            }
+            // 4. Sync Personal Notes
+            syncEntities(
+                tableName = "personal_notes",
+                entities = dao.getUnsyncedPersonalNotes(),
+                getId = { it.id },
+                isDeleted = { it.isDeleted },
+                withUserAndSynced = { item, uid -> item.copy(userId = uid, isSynced = true) },
+                deleteLocal = { dao.deletePersonalNote(it) },
+                saveLocal = { dao.insertPersonalNote(it) },
+                userId = userId
+            )
 
-            // 6. Sync Daily Records
+            // 5. Sync Daily Records
             val unsyncedDaily = dao.getUnsyncedDailyRecords()
             unsyncedDaily.forEach { record ->
-                SupabaseConfig.client.postgrest["daily_records"].upsert(record.copy(userId = userId))
-                dao.updateDailyRecord(record.copy(isSynced = true, userId = userId))
+                val synced = record.copy(userId = userId, isSynced = true)
+                SupabaseConfig.client.postgrest["daily_records"].upsert(synced)
+                dao.updateDailyRecord(synced)
             }
 
             Result.success()
         } catch (e: Exception) {
             e.printStackTrace()
             Result.retry()
+        }
+    }
+
+    private suspend inline fun <reified T : Any> syncEntities(
+        tableName: String,
+        entities: List<T>,
+        crossinline getId: (T) -> String,
+        crossinline isDeleted: (T) -> Boolean,
+        crossinline withUserAndSynced: (T, String) -> T,
+        crossinline deleteLocal: suspend (T) -> Unit,
+        crossinline saveLocal: suspend (T) -> Unit,
+        userId: String
+    ) {
+        for (entity in entities) {
+            if (isDeleted(entity)) {
+                SupabaseConfig.client.postgrest[tableName].delete {
+                    filter { eq("id", getId(entity)) }
+                }
+                deleteLocal(entity)
+            } else {
+                val prepared = withUserAndSynced(entity, userId)
+                SupabaseConfig.client.postgrest[tableName].upsert(prepared)
+                saveLocal(prepared)
+            }
         }
     }
 }

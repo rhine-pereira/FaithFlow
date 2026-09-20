@@ -32,10 +32,18 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.rhinepereira.faithflow.data.DailyRecord
+import com.rhinepereira.faithflow.util.DateUtils
 import kotlinx.coroutines.delay
 import java.text.SimpleDateFormat
 import java.util.*
 
+private val DAILY_MISSED_COLOR = Color(0xFFE57373)
+private val DAILY_COMPLETED_COLOR = Color(0xFF4CAF50)
+private val DAILY_PARTIAL_COLOR = Color(0xFFFBC02D)
+
+/**
+ * Screen for tracking daily spiritual walk (Scripture reading, prayer duration, and reflections).
+ */
 @Composable
 fun DailyScreen(
     viewModel: DailyViewModel = viewModel(),
@@ -46,32 +54,32 @@ fun DailyScreen(
     val isSealing = viewModel.isSealing.collectAsStateWhenVisible(isVisible)
     val allRecords = viewModel.allDailyRecords.collectAsStateWhenVisible(isVisible)
     val recordsByDay = remember(allRecords) {
-        allRecords.associateBy { getStartOfDay(it.date) }
+        allRecords.associateBy { DateUtils.getStartOfDay(it.date) }
     }
     val scrollState = rememberScrollState()
 
     // Calendar State
     var currentMonth by remember { mutableStateOf(Calendar.getInstance().apply { timeInMillis = targetDate }) }
-    val daysInMonth = remember(currentMonth) { getDaysInMonth(currentMonth) }
+    val daysInMonth = remember(currentMonth) { DateUtils.getDaysInMonth(currentMonth) }
     val monthYearFormat = remember { SimpleDateFormat("MMMM yyyy", Locale.getDefault()) }
 
     // Local states for UI stability
     var whatRead by remember { mutableStateOf("") }
     var prayerTime by remember { mutableStateOf(0) }
     var prophecy by remember { mutableStateOf("") }
-    
+
     var isReadingChecked by remember { mutableStateOf(false) }
     var isPrayerChecked by remember { mutableStateOf(false) }
-    
+
     var isCustomTimeVisible by remember { mutableStateOf(false) }
 
-    val todayMillis = remember { getStartOfDay(System.currentTimeMillis()) }
+    val todayMillis = remember { DateUtils.getStartOfDay() }
     val isFutureDate = targetDate > todayMillis
 
     // Sync month when targetDate changes (e.g. via arrows)
     LaunchedEffect(targetDate) {
         val dateMonth = Calendar.getInstance().apply { timeInMillis = targetDate }
-        if (dateMonth.get(Calendar.MONTH) != currentMonth.get(Calendar.MONTH) || 
+        if (dateMonth.get(Calendar.MONTH) != currentMonth.get(Calendar.MONTH) ||
             dateMonth.get(Calendar.YEAR) != currentMonth.get(Calendar.YEAR)) {
             currentMonth = dateMonth
         }
@@ -82,14 +90,14 @@ fun DailyScreen(
         currentRecord?.let { record ->
             isReadingChecked = record.readToday
             isPrayerChecked = record.prayedToday
-            
+
             if (!record.readToday || whatRead.isEmpty()) {
                 whatRead = record.whatRead ?: ""
             }
             if (!record.prayedToday || prayerTime == 0) {
                 prayerTime = record.totalPrayerTimeMinutes
             }
-            
+
             prophecy = record.prophecy ?: ""
         } ?: run {
             whatRead = ""
@@ -137,183 +145,107 @@ fun DailyScreen(
             verticalArrangement = Arrangement.spacedBy(32.dp)
         ) {
             // --- CALENDAR SECTION ---
+            CalendarGrid(
+                currentMonth = currentMonth,
+                daysInMonth = daysInMonth,
+                targetDate = targetDate,
+                todayMillis = todayMillis,
+                recordsByDay = recordsByDay,
+                monthYearFormat = monthYearFormat,
+                primaryColor = primaryColor,
+                surfaceContainerColor = surfaceContainerColor,
+                onSurfaceColor = onSurfaceColor,
+                onSurfaceVariantColor = onSurfaceVariantColor,
+                onPrevMonth = {
+                    currentMonth = (currentMonth.clone() as Calendar).apply { add(Calendar.MONTH, -1) }
+                },
+                onNextMonth = {
+                    currentMonth = (currentMonth.clone() as Calendar).apply { add(Calendar.MONTH, 1) }
+                },
+                onDateSelected = { dateMillis ->
+                    viewModel.setTargetDate(dateMillis)
+                }
+            )
+
+            // Selected Date Header and Status
             Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clip(RoundedCornerShape(24.dp))
-                    .background(surfaceContainerColor.copy(alpha = 0.3f))
-                    .padding(16.dp)
+                modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.spacedBy(16.dp)
             ) {
-                // Month Header
+                // Date Title & Day Navigation
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    IconButton(onClick = {
-                        currentMonth = (currentMonth.clone() as Calendar).apply { add(Calendar.MONTH, -1) }
-                    }) {
-                        Icon(Icons.AutoMirrored.Filled.KeyboardArrowLeft, contentDescription = "Prev Month", tint = primaryColor)
+                    IconButton(onClick = { viewModel.moveDate(-1) }) {
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Previous Day", tint = primaryColor)
                     }
 
-                    Text(
-                        text = monthYearFormat.format(currentMonth.time),
-                        style = MaterialTheme.typography.titleMedium,
-                        fontWeight = FontWeight.ExtraBold,
-                        color = primaryColor
-                    )
-
-                    IconButton(onClick = {
-                        currentMonth = (currentMonth.clone() as Calendar).apply { add(Calendar.MONTH, 1) }
-                    }) {
-                        Icon(Icons.AutoMirrored.Filled.KeyboardArrowRight, contentDescription = "Next Month", tint = primaryColor)
-                    }
-                }
-
-                Spacer(modifier = Modifier.height(12.dp))
-
-                // Weekdays
-                Row(modifier = Modifier.fillMaxWidth()) {
-                    listOf("S", "M", "T", "W", "T", "F", "S").forEach { day ->
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
                         Text(
-                            text = day,
-                            modifier = Modifier.weight(1f),
-                            textAlign = TextAlign.Center,
+                            text = SimpleDateFormat("EEEE", Locale.getDefault()).format(Date(targetDate)).uppercase(),
                             style = MaterialTheme.typography.labelSmall,
+                            letterSpacing = 2.sp,
                             fontWeight = FontWeight.Bold,
-                            color = onSurfaceVariantColor.copy(alpha = 0.6f)
+                            color = primaryColor
+                        )
+                        Text(
+                            text = SimpleDateFormat("MMMM d", Locale.getDefault()).format(Date(targetDate)),
+                            style = MaterialTheme.typography.headlineMedium,
+                            fontWeight = FontWeight.ExtraBold,
+                            color = onSurfaceColor
+                        )
+                    }
+
+                    val canGoForward = targetDate < todayMillis
+                    IconButton(
+                        onClick = { if (canGoForward) viewModel.moveDate(1) },
+                        enabled = canGoForward
+                    ) {
+                        Icon(
+                            Icons.AutoMirrored.Filled.ArrowForward,
+                            contentDescription = "Next Day",
+                            tint = if (canGoForward) primaryColor else onSurfaceVariantColor.copy(alpha = 0.3f)
                         )
                     }
                 }
 
-                Spacer(modifier = Modifier.height(8.dp))
-
-                // Grid using standard Column/Row for scroll stability
-                val entireGrid = daysInMonth.toMutableList()
-                while (entireGrid.size % 7 != 0) {
-                    entireGrid.add(null)
-                }
-                val rows = entireGrid.chunked(7)
-                
-                rows.forEach { week ->
-                    Row(modifier = Modifier.fillMaxWidth()) {
-                        week.forEach { date ->
-                            Box(modifier = Modifier.weight(1f).aspectRatio(1f)) {
-                                if (date != null) {
-                                    val dateMillis = date.timeInMillis
-                                    val record = recordsByDay[getStartOfDay(dateMillis)]
-                                    val isSelected = isSameDay(targetDate, dateMillis)
-                                    val isToday = isSameDay(dateMillis, todayMillis)
-                                    
-                                    val cellColor = when {
-                                        dateMillis > todayMillis -> Color.Transparent
-                                        record == null -> Color(0xFFE57373)
-                                        record.readToday && record.prayedToday -> Color(0xFF4CAF50)
-                                        record.readToday || record.prayedToday -> Color(0xFFFBC02D)
-                                        else -> Color(0xFFE57373)
-                                    }
-
-                                    Box(
-                                        modifier = Modifier
-                                            .fillMaxSize(0.85f) // Scalable based on cell size
-                                            .align(Alignment.Center)
-                                            .clip(CircleShape)
-                                            .background(cellColor)
-                                            .then(
-                                                if (record == null && dateMillis <= todayMillis) Modifier.border(
-                                                    width = 1.dp,
-                                                    color = onSurfaceVariantColor.copy(alpha = 0.15f),
-                                                    shape = CircleShape
-                                                ) else if (dateMillis > todayMillis) Modifier.border(
-                                                    width = 1.dp,
-                                                    color = onSurfaceVariantColor.copy(alpha = 0.05f),
-                                                    shape = CircleShape
-                                                ) else Modifier
-                                            )
-                                            .then(
-                                                if (isSelected) Modifier.border(
-                                                    width = 2.dp,
-                                                    color = primaryColor,
-                                                    shape = CircleShape
-                                                ) else Modifier
-                                            )
-                                            .clickable { 
-                                                viewModel.setTargetDate(dateMillis)
-                                            },
-                                        contentAlignment = Alignment.Center
-                                    ) {
-                                        Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) {
-                                            Text(
-                                                text = date.get(Calendar.DAY_OF_MONTH).toString(),
-                                                color = if (record != null || (record == null && dateMillis <= todayMillis)) Color.White else onSurfaceColor,
-                                                style = MaterialTheme.typography.bodySmall.copy(fontSize = 12.sp),
-                                                fontWeight = if (isToday) FontWeight.ExtraBold else FontWeight.Medium
-                                            )
-                                            if (isToday) {
-                                                Box(
-                                                    modifier = Modifier
-                                                        .size(4.dp)
-                                                        .background(if (record == null) primaryColor else Color.White, CircleShape)
-                                                )
-                                            }
-                                        }
-                                    }
-                                }
-                            }
+                // Walk Sealed Badge
+                if (currentRecord?.isSealed == true) {
+                    Surface(
+                        shape = RoundedCornerShape(12.dp),
+                        color = primaryColor.copy(alpha = 0.1f),
+                        border = androidx.compose.foundation.BorderStroke(1.dp, primaryColor.copy(alpha = 0.3f))
+                    ) {
+                        Row(
+                            modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(6.dp)
+                        ) {
+                            Icon(Icons.Default.CheckCircle, contentDescription = null, tint = primaryColor, modifier = Modifier.size(16.dp))
+                            Text("Walk Sealed for Today", style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Bold, color = primaryColor)
                         }
                     }
                 }
             }
 
-            // Selected Date Header and Status
-            Column(
-                modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
-                verticalArrangement = Arrangement.spacedBy(8.dp),
-                horizontalAlignment = Alignment.CenterHorizontally
-            ) {
-                val dateStr = SimpleDateFormat("EEEE, MMMM d", Locale.getDefault()).format(Date(targetDate))
-                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Text(
-                        text = dateStr,
-                        color = primaryColor,
-                        style = MaterialTheme.typography.titleMedium,
-                        fontWeight = FontWeight.Bold
-                    )
-                    if (currentRecord?.isSealed == true) {
-                        Icon(
-                            imageVector = Icons.Default.CheckCircle,
-                            contentDescription = "Sealed",
-                            tint = Color(0xFF4CAF50),
-                            modifier = Modifier.size(20.dp)
-                        )
-                    }
-                }
-                if (isFutureDate) {
-                    Text(
-                        "Locked - This trip hasn't begun yet.",
-                        color = onSurfaceVariantColor.copy(alpha = 0.5f),
-                        style = MaterialTheme.typography.labelSmall,
-                        textAlign = TextAlign.Center
-                    )
-                }
-            }
-
-            // --- TRACKER CANVAS --- (Disabled if future date)
+            // --- TRACKING SECTION ---
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .then(if (isFutureDate) Modifier.alpha(0.5f) else Modifier),
-                verticalArrangement = Arrangement.spacedBy(32.dp)
+                    .alpha(if (isFutureDate) 0.38f else 1.0f),
+                verticalArrangement = Arrangement.spacedBy(24.dp)
             ) {
-                // Reading Tracker
+                // 1. Scripture Section
                 TrackerSection(
-                    title = "Have you read the Word?",
-                    subtitle = "Divine nourishment for the soul.",
+                    title = "Scripture",
+                    subtitle = "Did you spend time in the Word?",
                     isChecked = isReadingChecked,
-                    onCheckedChange = { 
-                        if (!isFutureDate) {
-                            viewModel.updateDailyRecord(readToday = it) 
-                        }
+                    onCheckedChange = { checked ->
+                        isReadingChecked = checked
+                        viewModel.updateDailyRecord(readToday = checked)
                     },
                     enabled = !isFutureDate,
                     primaryColor = primaryColor,
@@ -321,47 +253,36 @@ fun DailyScreen(
                     onSurfaceVariantColor = onSurfaceVariantColor
                 ) {
                     Column(
-                        modifier = Modifier.padding(start = 16.dp, top = 8.dp),
-                        verticalArrangement = Arrangement.spacedBy(16.dp)
+                        modifier = Modifier.fillMaxWidth().padding(top = 12.dp),
+                        verticalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
-                        Text(
-                            "WHICH CHAPTERS OR VERSES DID YOU STUDY?",
-                            style = MaterialTheme.typography.labelSmall,
-                            color = onSurfaceVariantColor,
-                            letterSpacing = 2.sp
-                        )
+                        Text("What did you read?", style = MaterialTheme.typography.labelMedium, color = onSurfaceVariantColor)
                         OutlinedTextField(
                             value = whatRead,
-                            onValueChange = { if (!isFutureDate) whatRead = it },
-                            readOnly = isFutureDate,
-                            placeholder = { 
-                                Text("e.g. Psalm 23, John 1:1-14", color = onSurfaceVariantColor.copy(alpha = 0.4f)) 
-                            },
+                            onValueChange = { whatRead = it },
+                            placeholder = { Text("e.g. John 15, Psalm 23", color = onSurfaceVariantColor.copy(alpha = 0.5f)) },
                             modifier = Modifier.fillMaxWidth(),
-                            colors = TextFieldDefaults.colors(
-                                focusedContainerColor = colorScheme.surfaceVariant.copy(alpha = 0.5f),
-                                unfocusedContainerColor = colorScheme.surfaceVariant.copy(alpha = 0.3f),
-                                focusedIndicatorColor = primaryColor,
-                                unfocusedIndicatorColor = Color.Transparent,
-                                focusedTextColor = onSurfaceColor,
-                                unfocusedTextColor = onSurfaceColor
+                            shape = RoundedCornerShape(12.dp),
+                            colors = OutlinedTextFieldDefaults.colors(
+                                focusedBorderColor = primaryColor,
+                                unfocusedBorderColor = surfaceContainerColor
                             ),
-                            shape = RoundedCornerShape(4.dp)
+                            enabled = !isFutureDate,
+                            singleLine = true
                         )
                     }
                 }
 
-                HorizontalDivider(color = onSurfaceVariantColor.copy(alpha = 0.1f))
+                HorizontalDivider(color = surfaceContainerColor.copy(alpha = 0.5f))
 
-                // Prayer Tracker
+                // 2. Prayer Section
                 TrackerSection(
-                    title = "Time in personal prayer?",
-                    subtitle = "Communing with the Creator.",
+                    title = "Prayer",
+                    subtitle = "Did you spend time in communion?",
                     isChecked = isPrayerChecked,
-                    onCheckedChange = { 
-                        if (!isFutureDate) {
-                            viewModel.updateDailyRecord(prayedToday = it) 
-                        }
+                    onCheckedChange = { checked ->
+                        isPrayerChecked = checked
+                        viewModel.updateDailyRecord(prayedToday = checked)
                     },
                     enabled = !isFutureDate,
                     primaryColor = primaryColor,
@@ -369,53 +290,32 @@ fun DailyScreen(
                     onSurfaceVariantColor = onSurfaceVariantColor
                 ) {
                     Column(
-                        modifier = Modifier.padding(start = 16.dp, top = 8.dp),
+                        modifier = Modifier.fillMaxWidth().padding(top = 12.dp),
                         verticalArrangement = Arrangement.spacedBy(16.dp)
                     ) {
-                        Text(
-                            "DEDICATION DURATION",
-                            style = MaterialTheme.typography.labelSmall,
-                            color = onSurfaceVariantColor,
-                            letterSpacing = 2.sp
-                        )
+                        Text("How long?", style = MaterialTheme.typography.labelMedium, color = onSurfaceVariantColor)
                         
                         Row(
                             modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.spacedBy(12.dp)
+                            horizontalArrangement = Arrangement.SpaceBetween
                         ) {
+                            listOf(15 to "15m", 30 to "30m", 60 to "1h").forEach { (minutes, label) ->
+                                DurationButton(
+                                    text = label,
+                                    isSelected = prayerTime == minutes && !isCustomTimeVisible,
+                                    enabled = !isFutureDate,
+                                    onClick = { 
+                                        isCustomTimeVisible = false
+                                        prayerTime = minutes
+                                        viewModel.updateDailyRecord(prayerTime = minutes)
+                                    },
+                                    primaryColor = primaryColor,
+                                    onSurfaceVariantColor = onSurfaceVariantColor
+                                )
+                            }
                             DurationButton(
-                                "15 min", 
-                                isSelected = prayerTime == 15,
-                                enabled = !isFutureDate,
-                                onClick = { 
-                                    viewModel.updateDailyRecord(prayerTime = 15)
-                                },
-                                primaryColor = primaryColor,
-                                onSurfaceVariantColor = onSurfaceVariantColor
-                            )
-                            DurationButton(
-                                "30 min", 
-                                isSelected = prayerTime == 30,
-                                enabled = !isFutureDate,
-                                onClick = { 
-                                    viewModel.updateDailyRecord(prayerTime = 30)
-                                },
-                                primaryColor = primaryColor,
-                                onSurfaceVariantColor = onSurfaceVariantColor
-                            )
-                            DurationButton(
-                                "1 hr", 
-                                isSelected = prayerTime == 60,
-                                enabled = !isFutureDate,
-                                onClick = { 
-                                    viewModel.updateDailyRecord(prayerTime = 60)
-                                },
-                                primaryColor = primaryColor,
-                                onSurfaceVariantColor = onSurfaceVariantColor
-                            )
-                            DurationButton(
-                                "Custom", 
-                                isSelected = isCustomTimeVisible,
+                                text = "Custom",
+                                isSelected = isCustomTimeVisible || (prayerTime != 15 && prayerTime != 30 && prayerTime != 60 && prayerTime > 0),
                                 enabled = !isFutureDate,
                                 onClick = { isCustomTimeVisible = !isCustomTimeVisible },
                                 primaryColor = primaryColor,
@@ -423,108 +323,291 @@ fun DailyScreen(
                             )
                         }
 
-                        if (isCustomTimeVisible) {
+                        if (isCustomTimeVisible || (prayerTime != 15 && prayerTime != 30 && prayerTime != 60 && prayerTime > 0)) {
                             OutlinedTextField(
-                                value = if (prayerTime > 0) prayerTime.toString() else "",
-                                onValueChange = {
-                                    if (!isFutureDate && it.all { char -> char.isDigit() }) {
-                                        val time = it.toIntOrNull() ?: 0
-                                        viewModel.updateDailyRecord(prayerTime = time)
-                                    }
+                                value = if (prayerTime == 0) "" else prayerTime.toString(),
+                                onValueChange = { 
+                                    val time = it.filter { char -> char.isDigit() }.toIntOrNull() ?: 0
+                                    prayerTime = time
+                                    viewModel.updateDailyRecord(prayerTime = time)
                                 },
-                                readOnly = isFutureDate,
-                                placeholder = { 
-                                    Text("Enter duration (min)", color = onSurfaceVariantColor.copy(alpha = 0.4f)) 
-                                },
+                                label = { Text("Minutes") },
                                 modifier = Modifier.fillMaxWidth(),
+                                shape = RoundedCornerShape(12.dp),
+                                colors = OutlinedTextFieldDefaults.colors(
+                                    focusedBorderColor = primaryColor,
+                                    unfocusedBorderColor = surfaceContainerColor
+                                ),
+                                enabled = !isFutureDate,
+                                singleLine = true
                             )
                         }
                     }
                 }
 
-                // Prophetic Word Section
-                Column(verticalArrangement = Arrangement.spacedBy(24.dp)) {
+                HorizontalDivider(color = surfaceContainerColor.copy(alpha = 0.5f))
+
+                // 3. Prophetic Whisper / Reflection
+                Column(
+                    modifier = Modifier.fillMaxWidth().padding(vertical = 12.dp),
+                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
                     Row(
                         verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(12.dp)
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
-                        Icon(imageVector = Icons.Default.AutoAwesome, contentDescription = null, tint = primaryColor)
-                        Text("Prophetic Word & Insights", style = MaterialTheme.typography.headlineSmall, color = onSurfaceColor, fontWeight = FontWeight.SemiBold)
+                        Icon(Icons.Default.AutoAwesome, contentDescription = null, tint = primaryColor, modifier = Modifier.size(20.dp))
+                        Text("Reflection & Prophecy", style = MaterialTheme.typography.titleLarge, color = onSurfaceColor)
                     }
+                    Text(
+                        "What did the Lord impress on your heart today?",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = onSurfaceVariantColor
+                    )
 
-                    Box(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .clip(RoundedCornerShape(16.dp))
-                            .background(surfaceContainerColor)
-                            .padding(24.dp)
+                    Surface(
+                        modifier = Modifier.fillMaxWidth().heightIn(min = 120.dp),
+                        shape = RoundedCornerShape(16.dp),
+                        color = surfaceContainerColor.copy(alpha = 0.3f),
+                        border = androidx.compose.foundation.BorderStroke(1.dp, surfaceContainerColor.copy(alpha = 0.5f))
                     ) {
-                        BasicTextField(
-                            value = prophecy,
-                            onValueChange = { if (!isFutureDate) prophecy = it },
-                            readOnly = isFutureDate,
-                            modifier = Modifier.fillMaxWidth().heightIn(min = 120.dp),
-                            textStyle = MaterialTheme.typography.bodyLarge.copy(color = onSurfaceColor, lineHeight = 28.sp),
-                            decorationBox = { innerTextField ->
-                                if (prophecy.isEmpty()) {
-                                    Text("What is the Spirit whispering to your heart?", color = onSurfaceVariantColor.copy(alpha = 0.3f), style = MaterialTheme.typography.bodyLarge)
-                                }
-                                innerTextField()
+                        Box(modifier = Modifier.padding(16.dp)) {
+                            if (prophecy.isEmpty()) {
+                                Text(
+                                    "A whisper, a scripture, a promise, or conviction...",
+                                    style = MaterialTheme.typography.bodyMedium.copy(fontStyle = FontStyle.Italic),
+                                    color = onSurfaceVariantColor.copy(alpha = 0.5f)
+                                )
                             }
-                        )
+                            BasicTextField(
+                                value = prophecy,
+                                onValueChange = { prophecy = it },
+                                modifier = Modifier.fillMaxWidth(),
+                                textStyle = MaterialTheme.typography.bodyMedium.copy(color = onSurfaceColor),
+                                enabled = !isFutureDate
+                            )
+                        }
                     }
                 }
             }
 
-            Spacer(modifier = Modifier.height(112.dp))
+            Spacer(modifier = Modifier.height(64.dp))
         }
 
         // --- STICKY SEAL FOOTER ---
         if (!isFutureDate) {
-            Box(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(24.dp),
-                contentAlignment = Alignment.BottomCenter
-            ) {
-                Surface(
-                    modifier = Modifier.fillMaxWidth().height(64.dp),
-                    shape = RoundedCornerShape(16.dp),
-                    color = backgroundColor.copy(alpha = 0.95f),
-                    tonalElevation = 8.dp,
-                    shadowElevation = 4.dp
-                ) {
-                    Button(
-                        onClick = { viewModel.sealTodayWalk() },
-                        modifier = Modifier.fillMaxSize(),
-                        contentPadding = PaddingValues(0.dp),
-                        colors = ButtonDefaults.buttonColors(containerColor = Color.Transparent),
-                        enabled = !isSealing && !isFutureDate
-                    ) {
-                        Box(
-                            modifier = Modifier
-                                .fillMaxSize()
-                                .background(gradientBrush),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            AnimatedContent(targetState = isSealing, label = "SealFeedback") { sealing ->
-                                if (sealing) {
-                                    CircularProgressIndicator(modifier = Modifier.size(24.dp), color = colorScheme.onPrimary, strokeWidth = 2.dp)
-                                } else {
-                                    Row(
-                                        verticalAlignment = Alignment.CenterVertically,
-                                        horizontalArrangement = Arrangement.spacedBy(8.dp)
-                                    ) {
-                                        if (currentRecord?.isSealed == true) {
-                                            Icon(Icons.Default.CheckCircle, contentDescription = null, modifier = Modifier.size(20.dp), tint = colorScheme.onPrimary)
-                                        }
-                                        Text(
-                                            text = if (currentRecord?.isSealed == true) "Your Walk is Sealed" else "Seal Today's Walk",
-                                            color = colorScheme.onPrimary,
-                                            fontWeight = FontWeight.Bold
+            SealFooter(
+                isSealed = currentRecord?.isSealed == true,
+                isSealing = isSealing,
+                backgroundColor = backgroundColor,
+                gradientBrush = gradientBrush,
+                onSealClick = { viewModel.sealTodayWalk() }
+            )
+        }
+    }
+}
+
+/**
+ * Calendar grid displaying month days with visual completion rings.
+ */
+@Composable
+fun CalendarGrid(
+    currentMonth: Calendar,
+    daysInMonth: List<Calendar?>,
+    targetDate: Long,
+    todayMillis: Long,
+    recordsByDay: Map<Long, DailyRecord>,
+    monthYearFormat: SimpleDateFormat,
+    primaryColor: Color,
+    surfaceContainerColor: Color,
+    onSurfaceColor: Color,
+    onSurfaceVariantColor: Color,
+    onPrevMonth: () -> Unit,
+    onNextMonth: () -> Unit,
+    onDateSelected: (Long) -> Unit,
+    modifier: Modifier = Modifier
+) {
+    Column(
+        modifier = modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(24.dp))
+            .background(surfaceContainerColor.copy(alpha = 0.3f))
+            .padding(16.dp)
+    ) {
+        // Month Header
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            IconButton(onClick = onPrevMonth) {
+                Icon(Icons.AutoMirrored.Filled.KeyboardArrowLeft, contentDescription = "Prev Month", tint = primaryColor)
+            }
+
+            Text(
+                text = monthYearFormat.format(currentMonth.time),
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.ExtraBold,
+                color = primaryColor
+            )
+
+            IconButton(onClick = onNextMonth) {
+                Icon(Icons.AutoMirrored.Filled.KeyboardArrowRight, contentDescription = "Next Month", tint = primaryColor)
+            }
+        }
+
+        Spacer(modifier = Modifier.height(12.dp))
+
+        // Weekdays
+        Row(modifier = Modifier.fillMaxWidth()) {
+            listOf("S", "M", "T", "W", "T", "F", "S").forEach { day ->
+                Text(
+                    text = day,
+                    modifier = Modifier.weight(1f),
+                    textAlign = TextAlign.Center,
+                    style = MaterialTheme.typography.labelSmall,
+                    fontWeight = FontWeight.Bold,
+                    color = onSurfaceVariantColor.copy(alpha = 0.6f)
+                )
+            }
+        }
+
+        Spacer(modifier = Modifier.height(8.dp))
+
+        // Grid using standard Column/Row for scroll stability
+        val entireGrid = daysInMonth.toMutableList()
+        while (entireGrid.size % 7 != 0) {
+            entireGrid.add(null)
+        }
+        val rows = entireGrid.chunked(7)
+
+        rows.forEach { week ->
+            Row(modifier = Modifier.fillMaxWidth()) {
+                week.forEach { date ->
+                    Box(modifier = Modifier.weight(1f).aspectRatio(1f)) {
+                        if (date != null) {
+                            val dateMillis = date.timeInMillis
+                            val record = recordsByDay[DateUtils.getStartOfDay(dateMillis)]
+                            val isSelected = DateUtils.isSameDay(targetDate, dateMillis)
+                            val isToday = DateUtils.isSameDay(dateMillis, todayMillis)
+
+                            val cellColor = when {
+                                dateMillis > todayMillis -> Color.Transparent
+                                record == null -> DAILY_MISSED_COLOR
+                                record.readToday && record.prayedToday -> DAILY_COMPLETED_COLOR
+                                record.readToday || record.prayedToday -> DAILY_PARTIAL_COLOR
+                                else -> DAILY_MISSED_COLOR
+                            }
+
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxSize(0.85f)
+                                    .align(Alignment.Center)
+                                    .clip(CircleShape)
+                                    .background(cellColor)
+                                    .then(
+                                        if (record == null && dateMillis <= todayMillis) Modifier.border(
+                                            width = 1.dp,
+                                            color = onSurfaceVariantColor.copy(alpha = 0.15f),
+                                            shape = CircleShape
+                                        ) else if (dateMillis > todayMillis) Modifier.border(
+                                            width = 1.dp,
+                                            color = onSurfaceVariantColor.copy(alpha = 0.05f),
+                                            shape = CircleShape
+                                        ) else Modifier
+                                    )
+                                    .then(
+                                        if (isSelected) Modifier.border(
+                                            width = 2.dp,
+                                            color = primaryColor,
+                                            shape = CircleShape
+                                        ) else Modifier
+                                    )
+                                    .clickable {
+                                        onDateSelected(dateMillis)
+                                    },
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) {
+                                    Text(
+                                        text = date.get(Calendar.DAY_OF_MONTH).toString(),
+                                        color = if (record != null || dateMillis <= todayMillis) Color.White else onSurfaceColor,
+                                        style = MaterialTheme.typography.bodySmall.copy(fontSize = 12.sp),
+                                        fontWeight = if (isToday) FontWeight.ExtraBold else FontWeight.Medium
+                                    )
+                                    if (isToday) {
+                                        Box(
+                                            modifier = Modifier
+                                                .size(4.dp)
+                                                .background(if (record == null) primaryColor else Color.White, CircleShape)
                                         )
                                     }
                                 }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+/**
+ * Sticky action footer button to seal the daily spiritual walk.
+ */
+@Composable
+fun SealFooter(
+    isSealed: Boolean,
+    isSealing: Boolean,
+    backgroundColor: Color,
+    gradientBrush: Brush,
+    onSealClick: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    val colorScheme = MaterialTheme.colorScheme
+
+    Box(
+        modifier = modifier
+            .fillMaxSize()
+            .padding(24.dp),
+        contentAlignment = Alignment.BottomCenter
+    ) {
+        Surface(
+            modifier = Modifier.fillMaxWidth().height(64.dp),
+            shape = RoundedCornerShape(16.dp),
+            color = backgroundColor.copy(alpha = 0.95f),
+            tonalElevation = 8.dp,
+            shadowElevation = 4.dp
+        ) {
+            Button(
+                onClick = onSealClick,
+                modifier = Modifier.fillMaxSize(),
+                contentPadding = PaddingValues(0.dp),
+                colors = ButtonDefaults.buttonColors(containerColor = Color.Transparent),
+                enabled = !isSealing
+            ) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .background(gradientBrush),
+                    contentAlignment = Alignment.Center
+                ) {
+                    AnimatedContent(targetState = isSealing, label = "SealFeedback") { sealing ->
+                        if (sealing) {
+                            CircularProgressIndicator(modifier = Modifier.size(24.dp), color = colorScheme.onPrimary, strokeWidth = 2.dp)
+                        } else {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
+                                if (isSealed) {
+                                    Icon(Icons.Default.CheckCircle, contentDescription = null, modifier = Modifier.size(20.dp), tint = colorScheme.onPrimary)
+                                }
+                                Text(
+                                    text = if (isSealed) "Your Walk is Sealed" else "Seal Today's Walk",
+                                    color = colorScheme.onPrimary,
+                                    fontWeight = FontWeight.Bold
+                                )
                             }
                         }
                     }
@@ -567,7 +650,7 @@ fun TrackerSection(
                 )
             )
         }
-        
+
         AnimatedVisibility(visible = isChecked && enabled) {
             content()
         }
@@ -588,7 +671,7 @@ fun DurationButton(
         isSelected -> colorScheme.primaryContainer
         else -> colorScheme.surfaceVariant.copy(alpha = 0.2f)
     }
-    
+
     Box(
         modifier = Modifier
             .height(48.dp)
@@ -601,35 +684,4 @@ fun DurationButton(
     ) {
         Text(text = text, color = if (isSelected) primaryColor else onSurfaceVariantColor, style = MaterialTheme.typography.labelSmall)
     }
-}
-
-private fun getDaysInMonth(calendar: Calendar): List<Calendar?> {
-    val days = mutableListOf<Calendar?>()
-    val cal = calendar.clone() as Calendar
-    cal.set(Calendar.DAY_OF_MONTH, 1)
-    val firstDayOfWeek = cal.get(Calendar.DAY_OF_WEEK) - 1
-    repeat(firstDayOfWeek) { days.add(null) }
-    val totalDays = cal.getActualMaximum(Calendar.DAY_OF_MONTH)
-    repeat(totalDays) {
-        days.add(cal.clone() as Calendar)
-        cal.add(Calendar.DAY_OF_MONTH, 1)
-    }
-    return days
-}
-
-private fun isSameDay(t1: Long, t2: Long): Boolean {
-    val cal1 = Calendar.getInstance().apply { timeInMillis = t1 }
-    val cal2 = Calendar.getInstance().apply { timeInMillis = t2 }
-    return cal1.get(Calendar.YEAR) == cal2.get(Calendar.YEAR) &&
-           cal1.get(Calendar.DAY_OF_YEAR) == cal2.get(Calendar.DAY_OF_YEAR)
-}
-
-private fun getStartOfDay(timestamp: Long): Long {
-    val calendar = Calendar.getInstance()
-    calendar.timeInMillis = timestamp
-    calendar.set(Calendar.HOUR_OF_DAY, 0)
-    calendar.set(Calendar.MINUTE, 0)
-    calendar.set(Calendar.SECOND, 0)
-    calendar.set(Calendar.MILLISECOND, 0)
-    return calendar.timeInMillis
 }

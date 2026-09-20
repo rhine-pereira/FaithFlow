@@ -1,18 +1,19 @@
 package com.rhinepereira.faithflow.data
 
 import android.content.Context
-import androidx.work.*
-import com.rhinepereira.faithflow.sync.SyncWorker
-import com.google.firebase.auth.FirebaseAuth
 import android.util.Log
+import com.rhinepereira.faithflow.sync.SyncScheduler
+import com.rhinepereira.faithflow.util.DateUtils
 import io.github.jan.supabase.postgrest.postgrest
-import io.github.jan.supabase.postgrest.query.Columns
-import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 
+/**
+ * In-memory gate preventing redundant fetch calls within [MIN_INTERVAL_MS].
+ */
 object CloudSyncGate {
     private val mutex = Mutex()
     private var lastFetchAt = 0L
@@ -48,15 +49,16 @@ object CloudSyncGate {
     }
 }
 
+/**
+ * Repository for Bible verses, themes, and daily records.
+ */
 class VerseRepository(private val context: Context, private val verseDao: VerseDao) {
 
     fun getAllNotesWithVerses(userId: String): Flow<List<NoteWithVerses>> = verseDao.getNotesWithVerses(userId)
 
     fun getVersesForNote(noteId: String): Flow<List<Verse>> = verseDao.getVersesForNote(noteId)
 
-    private fun getCurrentUserId(): String {
-        return FirebaseAuth.getInstance().currentUser?.uid ?: ""
-    }
+    private fun getCurrentUserId(): String = AuthRepository.currentUserId ?: ""
 
     suspend fun insertNote(note: Note) {
         verseDao.insertNote(note.copy(isSynced = false, userId = getCurrentUserId()))
@@ -82,13 +84,13 @@ class VerseRepository(private val context: Context, private val verseDao: VerseD
         val userId = getCurrentUserId()
         // Soft-delete the note locally.
         verseDao.updateNote(note.copy(isDeleted = true, isSynced = false, userId = userId))
-        
+
         // Soft-delete all its verses.
         val verses = verseDao.getVersesForNoteSync(note.id)
         verses.forEach { verse ->
             verseDao.updateVerse(verse.copy(isDeleted = true, isSynced = false, userId = userId))
         }
-        
+
         scheduleSync()
     }
 
@@ -109,58 +111,58 @@ class VerseRepository(private val context: Context, private val verseDao: VerseD
         val tag = "FaithFlowSync"
         try {
             if (userId.isBlank()) {
-                Log.d(tag, "Fetch skipped: blind userId")
+                Log.d(tag, "Fetch skipped: blank userId")
                 return@withContext
             }
             Log.d(tag, "Starting fetch for userId: $userId")
 
             // Fetch Notes
-            val notes = SupabaseConfig.client.postgrest["notes"].select {
-                filter { eq("user_id", userId) }
-            }.decodeList<Note>()
-            Log.d(tag, "Fetched ${notes.size} notes (themes)")
-            notes.forEach { note ->
-                val local = verseDao.getNoteById(note.id)
-                if (local == null || local.isSynced) {
-                    verseDao.insertNote(note.copy(isSynced = true, userId = userId))
-                }
-            }
- 
+            fetchAndUpsert<Note>(
+                tableName = "notes",
+                userId = userId,
+                tag = tag,
+                getId = { it.id },
+                getLocal = { verseDao.getNoteById(it) },
+                isSynced = { it.isSynced },
+                insertLocal = { verseDao.insertNote(it) },
+                withUserAndSynced = { item, uid -> item.copy(isSynced = true, userId = uid) }
+            )
+
             // Fetch Verses
-            val verses = SupabaseConfig.client.postgrest["verses"].select {
-                filter { eq("user_id", userId) }
-            }.decodeList<Verse>()
-            Log.d(tag, "Fetched ${verses.size} verses")
-            verses.forEach { verse ->
-                val local = verseDao.getVerseById(verse.id)
-                if (local == null || local.isSynced) {
-                    verseDao.insertVerse(verse.copy(isSynced = true, userId = userId))
-                }
-            }
- 
+            fetchAndUpsert<Verse>(
+                tableName = "verses",
+                userId = userId,
+                tag = tag,
+                getId = { it.id },
+                getLocal = { verseDao.getVerseById(it) },
+                isSynced = { it.isSynced },
+                insertLocal = { verseDao.insertVerse(it) },
+                withUserAndSynced = { item, uid -> item.copy(isSynced = true, userId = uid) }
+            )
+
             // Fetch Categories
-            val categoriesData = SupabaseConfig.client.postgrest["personal_note_categories"].select {
-                filter { eq("user_id", userId) }
-            }.decodeList<PersonalNoteCategory>()
-            Log.d(tag, "Fetched ${categoriesData.size} categories")
-            categoriesData.forEach { category ->
-                val local = verseDao.getCategoryById(category.id)
-                if (local == null || local.isSynced) {
-                    verseDao.insertCategory(category.copy(isSynced = true, userId = userId))
-                }
-            }
- 
+            fetchAndUpsert<PersonalNoteCategory>(
+                tableName = "personal_note_categories",
+                userId = userId,
+                tag = tag,
+                getId = { it.id },
+                getLocal = { verseDao.getCategoryById(it) },
+                isSynced = { it.isSynced },
+                insertLocal = { verseDao.insertCategory(it) },
+                withUserAndSynced = { item, uid -> item.copy(isSynced = true, userId = uid) }
+            )
+
             // Fetch Personal Notes
-            val personalNotes = SupabaseConfig.client.postgrest["personal_notes"].select {
-                filter { eq("user_id", userId) }
-            }.decodeList<PersonalNote>()
-            Log.d(tag, "Fetched ${personalNotes.size} personal notes")
-            personalNotes.forEach { personalNote ->
-                val local = verseDao.getPersonalNoteById(personalNote.id)
-                if (local == null || local.isSynced) {
-                    verseDao.insertPersonalNote(personalNote.copy(isSynced = true, userId = userId))
-                }
-            }
+            fetchAndUpsert<PersonalNote>(
+                tableName = "personal_notes",
+                userId = userId,
+                tag = tag,
+                getId = { it.id },
+                getLocal = { verseDao.getPersonalNoteById(it) },
+                isSynced = { it.isSynced },
+                insertLocal = { verseDao.insertPersonalNote(it) },
+                withUserAndSynced = { item, uid -> item.copy(isSynced = true, userId = uid) }
+            )
 
             // Fetch Daily Records
             val dailyRecords = SupabaseConfig.client.postgrest["daily_records"].select {
@@ -168,9 +170,8 @@ class VerseRepository(private val context: Context, private val verseDao: VerseD
             }.decodeList<DailyRecord>()
             Log.d(tag, "Fetched ${dailyRecords.size} daily records")
             dailyRecords.forEach { record ->
-                // Check if already exists synced
                 val startOfDay = record.date
-                val endOfDay = startOfDay + (24 * 60 * 60 * 1000)
+                val endOfDay = startOfDay + DateUtils.MILLIS_PER_DAY
                 val local = verseDao.getRecordForDateSync(userId, startOfDay, endOfDay)
                 if (local == null || local.isSynced) {
                     verseDao.insertDailyRecord(record.copy(isSynced = true, userId = userId))
@@ -178,29 +179,34 @@ class VerseRepository(private val context: Context, private val verseDao: VerseD
             }
             Log.d(tag, "Fetch completed successfully")
         } catch (e: Exception) {
-            Log.e(tag, "Fetch failed spectacularly", e)
+            Log.e(tag, "Fetch failed", e)
             e.printStackTrace()
         }
     }
 
+    private suspend inline fun <reified T : Any> fetchAndUpsert(
+        tableName: String,
+        userId: String,
+        tag: String,
+        crossinline getId: (T) -> String,
+        crossinline getLocal: suspend (String) -> T?,
+        crossinline isSynced: (T) -> Boolean,
+        crossinline insertLocal: suspend (T) -> Unit,
+        crossinline withUserAndSynced: (T, String) -> T
+    ) {
+        val items = SupabaseConfig.client.postgrest[tableName].select {
+            filter { eq("user_id", userId) }
+        }.decodeList<T>()
+        Log.d(tag, "Fetched ${items.size} $tableName")
+        items.forEach { item ->
+            val local = getLocal(getId(item))
+            if (local == null || isSynced(local)) {
+                insertLocal(withUserAndSynced(item, userId))
+            }
+        }
+    }
+
     fun scheduleSync() {
-        val constraints = Constraints.Builder()
-            .setRequiredNetworkType(NetworkType.CONNECTED)
-            .build()
-
-        val syncRequest = OneTimeWorkRequestBuilder<SyncWorker>()
-            .setConstraints(constraints)
-            .setBackoffCriteria(
-                BackoffPolicy.EXPONENTIAL,
-                WorkRequest.MIN_BACKOFF_MILLIS,
-                java.util.concurrent.TimeUnit.MILLISECONDS
-            )
-            .build()
-
-        WorkManager.getInstance(context).enqueueUniqueWork(
-            "supabase_sync",
-            ExistingWorkPolicy.REPLACE,
-            syncRequest
-        )
+        SyncScheduler.scheduleSync(context)
     }
 }

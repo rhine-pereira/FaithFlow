@@ -4,8 +4,8 @@ import android.app.Application
 import android.content.Context
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
-import com.google.firebase.auth.FirebaseAuth
 import com.rhinepereira.faithflow.data.*
+import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -17,6 +17,10 @@ import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 
+/**
+ * ViewModel managing thematic collections of Bible verses and user-defined theme ordering.
+ */
+@OptIn(ExperimentalCoroutinesApi::class)
 class VerseViewModel(application: Application) : AndroidViewModel(application) {
     private val repository: VerseRepository
     private val themeOrderPrefs = application.getSharedPreferences("theme_order_prefs", Context.MODE_PRIVATE)
@@ -25,13 +29,11 @@ class VerseViewModel(application: Application) : AndroidViewModel(application) {
     init {
         val verseDao = AppDatabase.getDatabase(application).verseDao()
         repository = VerseRepository(application, verseDao)
-        
+
         allNotesWithVerses = AuthRepository.authStatus
             .flatMapLatest { status ->
                 when (status) {
-                    is AuthStatus.Authenticated -> {
-                        repository.getAllNotesWithVerses(status.userId)
-                    }
+                    is AuthStatus.Authenticated -> repository.getAllNotesWithVerses(status.userId)
                     else -> flowOf(emptyList())
                 }
             }
@@ -40,7 +42,7 @@ class VerseViewModel(application: Application) : AndroidViewModel(application) {
                 started = SharingStarted.Eagerly,
                 initialValue = emptyList()
             )
-        
+
         // Background sync: Room is the cache; skip network if synced recently.
         viewModelScope.launch {
             AuthRepository.authStatus
@@ -73,6 +75,10 @@ class VerseViewModel(application: Application) : AndroidViewModel(application) {
             repository.insertNote(newNote)
             repository.insertVerse(Verse(noteId = newNote.id, reference = reference, content = content))
         }
+    }
+
+    fun addNoteWithInitialVerse(themeName: String, reference: String, content: String) {
+        addNoteAndVerse(themeName, reference, content)
     }
 
     fun updateVerse(verse: Verse) {
@@ -123,7 +129,7 @@ class VerseViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     private fun getThemeOrderKey(): String {
-        val userId = FirebaseAuth.getInstance().currentUser?.uid ?: "local_user"
+        val userId = AuthRepository.currentUserId ?: "local_user"
         return "theme_order_$userId"
     }
 }

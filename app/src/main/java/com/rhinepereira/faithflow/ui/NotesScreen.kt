@@ -1,41 +1,23 @@
 package com.rhinepereira.faithflow.ui
 
-import androidx.activity.compose.BackHandler
-import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.fadeIn
-import androidx.compose.animation.fadeOut
-import androidx.compose.animation.slideInVertically
-import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.BorderStroke
-import androidx.compose.foundation.gestures.detectDragGesturesAfterLongPress
-import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.grid.GridCells
+import androidx.compose.foundation.lazy.grid.LazyGridState
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
-import androidx.compose.foundation.lazy.grid.rememberLazyGridState
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
-import androidx.compose.runtime.snapshotFlow
-import androidx.compose.foundation.lazy.grid.LazyGridState
-import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.ExperimentalMaterialApi
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.pullrefresh.PullRefreshIndicator
 import androidx.compose.material.pullrefresh.pullRefresh
 import androidx.compose.material.pullrefresh.rememberPullRefreshState
-import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.text.KeyboardOptions
-import androidx.compose.material.ExperimentalMaterialApi
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.filled.AutoAwesome
-import androidx.compose.material.icons.filled.Delete
-import androidx.compose.material.icons.filled.DragHandle
-import androidx.compose.material.icons.filled.Edit
-import androidx.compose.material.icons.filled.FormatBold
-import androidx.compose.material.icons.filled.FormatItalic
-import androidx.compose.material.icons.filled.FormatListNumbered
 import androidx.compose.material3.*
 import androidx.compose.material3.TabRowDefaults.tabIndicatorOffset
 import androidx.compose.runtime.*
@@ -43,34 +25,41 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
-import androidx.compose.ui.input.pointer.pointerInput
-import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.text.AnnotatedString
-import androidx.compose.ui.text.SpanStyle
-import androidx.compose.ui.text.TextRange
-import androidx.compose.ui.text.buildAnnotatedString
-import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.input.KeyboardCapitalization
-import androidx.compose.ui.text.input.OffsetMapping
-import androidx.compose.ui.text.input.TextFieldValue
-import androidx.compose.ui.text.input.TransformedText
-import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.text.style.TextOverflow
-import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.rhinepereira.faithflow.data.PersonalNote
 import com.rhinepereira.faithflow.data.PersonalNoteCategory
-import com.rhinepereira.faithflow.data.BibleData
-import com.rhinepereira.faithflow.data.BibleDatabaseHelper
-import kotlinx.coroutines.delay
+import com.rhinepereira.faithflow.ui.components.DeleteConfirmationDialog
+import com.rhinepereira.faithflow.ui.components.RenameCategoryDialog
+import com.rhinepereira.faithflow.ui.notes.AddCategoryDialog
+import com.rhinepereira.faithflow.ui.notes.FullScreenNoteEditor
+import com.rhinepereira.faithflow.ui.notes.NoteListItem
+import com.rhinepereira.faithflow.ui.notes.ReorderCategoriesDialog
+import com.rhinepereira.faithflow.ui.notes.plainTextPreview
+import com.rhinepereira.faithflow.util.DateUtils
 import kotlinx.coroutines.launch
 import java.text.SimpleDateFormat
-import java.util.*
+import java.util.Date
+import java.util.Locale
 
+/**
+ * Creates a blank [PersonalNote] for today in the given category.
+ */
+private fun createNewNoteForToday(categoryId: String): PersonalNote =
+    PersonalNote(
+        categoryId = categoryId,
+        title = "",
+        content = "",
+        date = DateUtils.getStartOfDay()
+    )
+
+/**
+ * Screen displaying categorized personal notes in a grid, with swipeable category tabs.
+ */
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalMaterialApi::class)
 @Composable
 fun NotesScreen(
@@ -99,8 +88,8 @@ fun NotesScreen(
     var showReorderDialog by remember { mutableStateOf(false) }
     var isRefreshing by remember { mutableStateOf(false) }
     val coroutineScope = rememberCoroutineScope()
-    
-    val pullRefreshState =  rememberPullRefreshState(
+
+    val pullRefreshState = rememberPullRefreshState(
         refreshing = isRefreshing,
         onRefresh = {
             isRefreshing = true
@@ -128,7 +117,7 @@ fun NotesScreen(
         }
     }
 
-    if (noteToEdit != null) {
+    noteToEdit?.let { currentNote ->
         Dialog(
             onDismissRequest = { noteToEdit = null },
             properties = DialogProperties(
@@ -137,10 +126,10 @@ fun NotesScreen(
             )
         ) {
             FullScreenNoteEditor(
-                note = noteToEdit!!,
+                note = currentNote,
                 onDismiss = { noteToEdit = null },
                 onSave = { title, content ->
-                    viewModel.updateNote(noteToEdit!!.copy(title = title, content = content))
+                    viewModel.updateNote(currentNote.copy(title = title, content = content))
                 }
             )
         }
@@ -154,27 +143,35 @@ fun NotesScreen(
             horizontalArrangement = Arrangement.End,
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                IconButton(onClick = { showAddCategoryDialog = true }) {
-                    Icon(Icons.Default.Add, contentDescription = "Add Category", tint = MaterialTheme.colorScheme.primary)
-                }
-
-                if (categories.isNotEmpty()) {
-                    IconButton(onClick = { showReorderDialog = true }) {
-                        Icon(Icons.Default.Edit, contentDescription = "Edit Categories", tint = MaterialTheme.colorScheme.outline)
-                    }
-                }
+            IconButton(
+                onClick = { showReorderDialog = true }
+            ) {
+                Icon(
+                    Icons.Default.Edit,
+                    contentDescription = "Manage Categories",
+                    tint = MaterialTheme.colorScheme.primary
+                )
+            }
+            IconButton(
+                onClick = { showAddCategoryDialog = true },
+                modifier = Modifier.tutorialTarget(TutorialStep.ADD_CATEGORY_BTN)
+            ) {
+                Icon(
+                    Icons.Default.Add,
+                    contentDescription = "Add Category",
+                    tint = MaterialTheme.colorScheme.primary
+                )
             }
         }
 
         if (categories.isNotEmpty()) {
             ScrollableTabRow(
-                selectedTabIndex = tabIndex,
+                selectedTabIndex = tabIndex.coerceIn(0, categories.lastIndex),
                 edgePadding = 16.dp,
                 divider = {},
                 containerColor = Color.Transparent,
                 indicator = { tabPositions ->
-                    if (tabIndex < tabPositions.size) {
+                    if (tabIndex in tabPositions.indices) {
                         TabRowDefaults.SecondaryIndicator(
                             Modifier.tabIndicatorOffset(tabPositions[tabIndex]),
                             color = MaterialTheme.colorScheme.primary
@@ -182,23 +179,24 @@ fun NotesScreen(
                     }
                 }
             ) {
-                categories.forEachIndexed { index: Int, category: PersonalNoteCategory ->
+                categories.forEachIndexed { index, category ->
                     Tab(
                         selected = tabIndex == index,
                         onClick = {
                             tabIndex = index
-                            coroutineScope.launch {
-                                pagerState.scrollToPage(index)
-                            }
+                            coroutineScope.launch { pagerState.scrollToPage(index) }
                         },
                         text = {
                             Text(
-                                category.name,
+                                text = category.name,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis,
                                 color = if (tabIndex == index) {
                                     MaterialTheme.colorScheme.primary
                                 } else {
                                     MaterialTheme.colorScheme.outline
-                                }
+                                },
+                                fontWeight = if (tabIndex == index) FontWeight.Bold else FontWeight.Normal
                             )
                         }
                     )
@@ -206,25 +204,30 @@ fun NotesScreen(
             }
         }
 
-        Box(modifier = Modifier
-            .weight(1f)
-            .pullRefresh(pullRefreshState)) {
-            
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .pullRefresh(pullRefreshState)
+        ) {
             if (categories.isEmpty()) {
                 Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                    Text("No categories yet. Add one to start organizing your notes!", color = MaterialTheme.colorScheme.outline)
+                    Text("No categories yet. Add one above!", color = MaterialTheme.colorScheme.outline)
                 }
             } else {
                 HorizontalPager(
                     state = pagerState,
                     modifier = Modifier.fillMaxSize(),
                     beyondViewportPageCount = 1,
-                    key = { pageIndex -> categories.getOrNull(pageIndex)?.id ?: pageIndex }
-                ) { pageIndex: Int ->
-                    val category = categories.getOrNull(pageIndex) ?: return@HorizontalPager
+                    key = { page -> categories.getOrNull(page)?.id ?: page }
+                ) { page ->
+                    val category = categories.getOrNull(page)
+                    val notesForThisCat = if (category != null) {
+                        noteCardsByCategory[category.id] ?: emptyList()
+                    } else emptyList()
+
                     CategoryNotesPage(
-                        categoryId = category.id,
-                        items = noteCardsByCategory[category.id].orEmpty(),
+                        categoryId = category?.id ?: "",
+                        items = notesForThisCat,
                         onNoteClick = { noteToEdit = it },
                         onNoteDelete = { noteToDelete = it }
                     )
@@ -233,21 +236,9 @@ fun NotesScreen(
 
             if (categories.isNotEmpty()) {
                 FloatingActionButton(
-                    onClick = { 
-                        val calendar = Calendar.getInstance()
-                        calendar.set(Calendar.HOUR_OF_DAY, 0)
-                        calendar.set(Calendar.MINUTE, 0)
-                        calendar.set(Calendar.SECOND, 0)
-                        calendar.set(Calendar.MILLISECOND, 0)
-                        
+                    onClick = {
                         val currentCategoryId = categories.getOrNull(tabIndex)?.id ?: ""
-                        
-                        noteToEdit = PersonalNote(
-                            categoryId = currentCategoryId, 
-                            title = "", 
-                            content = "",
-                            date = calendar.timeInMillis
-                        ) 
+                        noteToEdit = createNewNoteForToday(currentCategoryId)
                     },
                     modifier = Modifier
                         .align(Alignment.BottomEnd)
@@ -257,7 +248,7 @@ fun NotesScreen(
                     Icon(Icons.Default.Add, contentDescription = "Add Note")
                 }
             }
-            
+
             PullRefreshIndicator(
                 refreshing = isRefreshing,
                 state = pullRefreshState,
@@ -277,50 +268,26 @@ fun NotesScreen(
     }
 
     noteToDelete?.let { note ->
-        AlertDialog(
-            onDismissRequest = { noteToDelete = null },
-            title = { Text("Delete Note", style = MaterialTheme.typography.headlineSmall, color = MaterialTheme.colorScheme.error) },
-            text = { Text("Are you sure you want to delete this note?") },
-            confirmButton = {
-                Button(
-                    onClick = {
-                        viewModel.deleteNote(note)
-                        noteToDelete = null
-                    },
-                    colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error)
-                ) {
-                    Text("Delete", fontWeight = FontWeight.Bold)
-                }
+        DeleteConfirmationDialog(
+            title = "Delete Note",
+            message = "Are you sure you want to delete this note?",
+            onConfirm = {
+                viewModel.deleteNote(note)
+                noteToDelete = null
             },
-            dismissButton = {
-                TextButton(onClick = { noteToDelete = null }) {
-                    Text("Cancel", color = MaterialTheme.colorScheme.outline)
-                }
-            }
+            onDismiss = { noteToDelete = null }
         )
     }
-    
+
     categoryToDelete?.let { category ->
-        AlertDialog(
-            onDismissRequest = { categoryToDelete = null },
-            title = { Text("Delete Category", style = MaterialTheme.typography.headlineSmall, color = MaterialTheme.colorScheme.error) },
-            text = { Text("Are you sure you want to delete \"${category.name}\" and all its notes?") },
-            confirmButton = {
-                Button(
-                    onClick = {
-                        viewModel.deleteCategory(category)
-                        categoryToDelete = null
-                    },
-                    colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error)
-                ) {
-                    Text("Delete", fontWeight = FontWeight.Bold)
-                }
+        DeleteConfirmationDialog(
+            title = "Delete Category",
+            message = "Are you sure you want to delete \"${category.name}\" and all its notes?",
+            onConfirm = {
+                viewModel.deleteCategory(category)
+                categoryToDelete = null
             },
-            dismissButton = {
-                TextButton(onClick = { categoryToDelete = null }) {
-                    Text("Cancel", color = MaterialTheme.colorScheme.outline)
-                }
-            }
+            onDismiss = { categoryToDelete = null }
         )
     }
 
@@ -357,24 +324,9 @@ fun NotesScreen(
     }
 }
 
-private data class NoteListItem(
-    val note: PersonalNote,
-    val dateLabel: String,
-    val preview: String
-)
-
-/** Fast preview for grid cards — full markdown parsing runs only in the editor. */
-private fun plainTextPreview(content: String): String {
-    if (content.isBlank()) return ""
-    return content
-        .replace("**", "")
-        .replace("_", "")
-        .lineSequence()
-        .take(8)
-        .joinToString("\n")
-        .take(400)
-}
-
+/**
+ * Page displaying notes in a 2-column grid for a specific category.
+ */
 @Composable
 private fun CategoryNotesPage(
     categoryId: String,
@@ -410,6 +362,9 @@ private fun CategoryNotesPage(
     }
 }
 
+/**
+ * Card representing a single note in the grid with title, preview, and date label.
+ */
 @Composable
 fun KeepNoteItem(
     note: PersonalNote,
@@ -451,15 +406,15 @@ fun KeepNoteItem(
                 }
                 IconButton(onClick = onDelete, modifier = Modifier.size(24.dp)) {
                     Icon(
-                        Icons.Default.Delete, 
-                        contentDescription = "Delete", 
+                        Icons.Default.Delete,
+                        contentDescription = "Delete",
                         tint = MaterialTheme.colorScheme.outline,
                         modifier = Modifier.size(16.dp)
                     )
                 }
             }
             if (note.title.isNotBlank()) Spacer(modifier = Modifier.height(8.dp))
-            
+
             Text(
                 text = preview,
                 style = MaterialTheme.typography.bodySmall,
@@ -477,699 +432,3 @@ fun KeepNoteItem(
         }
     }
 }
-
-@OptIn(ExperimentalMaterial3Api::class)
-@Composable
-fun FullScreenNoteEditor(
-    note: PersonalNote,
-    onDismiss: () -> Unit,
-    onSave: (String, String) -> Unit
-) {
-    var title by remember { mutableStateOf(note.title) }
-    var contentValue by remember { mutableStateOf(TextFieldValue(note.content)) }
-    val context = LocalContext.current
-    val bibleHelper = remember { BibleDatabaseHelper(context) }
-    val boldColor = MaterialTheme.colorScheme.primary
-    
-    val snackbarHostState = remember { SnackbarHostState() }
-    val scope = rememberCoroutineScope()
-    var lastContentValue by remember { mutableStateOf<TextFieldValue?>(null) }
-    var detectedReference by remember { mutableStateOf<BibleRef?>(null) }
-
-    LaunchedEffect(title, contentValue.text) {
-        if (title != note.title || contentValue.text != note.content) {
-            delay(500)  // Reduced from 5000ms to 500ms to minimize data loss risk
-            onSave(title, contentValue.text)
-        }
-    }
-
-    LaunchedEffect(contentValue) {
-        val text = contentValue.text
-        val selection = contentValue.selection
-        if (selection.collapsed && text.isNotEmpty()) {
-            val textBeforeCursor = text.take(selection.start)
-            val lastLine = textBeforeCursor.split("\n").lastOrNull() ?: ""
-            
-            if (lastLine.isNotBlank() && !lastLine.contains(" - ") && !lastLine.contains("**")) {
-                detectedReference = findBibleReference(lastLine)
-            } else {
-                detectedReference = null
-            }
-        } else {
-            detectedReference = null
-        }
-    }
-
-    val dismissAndSave = {
-        onSave(title, contentValue.text)
-        onDismiss()
-    }
-
-    BackHandler { dismissAndSave() }
-
-    Scaffold(
-        modifier = Modifier.fillMaxSize(),
-        topBar = {
-            TopAppBar(
-                title = {},
-                navigationIcon = {
-                    IconButton(onClick = dismissAndSave) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
-                    }
-                }
-            )
-        },
-        snackbarHost = { SnackbarHost(snackbarHostState) },
-        bottomBar = {
-            Column {
-                AnimatedVisibility(
-                    visible = detectedReference != null,
-                    enter = slideInVertically(initialOffsetY = { it }) + fadeIn(),
-                    exit = slideOutVertically(targetOffsetY = { it }) + fadeOut()
-                ) {
-                    detectedReference?.let { ref ->
-                        Surface(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(horizontal = 16.dp, vertical = 8.dp),
-                            shape = RoundedCornerShape(12.dp),
-                            color = MaterialTheme.colorScheme.primaryContainer,
-                            tonalElevation = 4.dp
-                        ) {
-                            Row(
-                                modifier = Modifier.padding(12.dp),
-                                verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.SpaceBetween
-                            ) {
-                                Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.weight(1f)) {
-                                    Icon(Icons.Default.AutoAwesome, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
-                                    Spacer(modifier = Modifier.width(8.dp))
-                                    val refLabel = ref.originalText
-                                    Text(
-                                        text = "Add $refLabel",
-                                        style = MaterialTheme.typography.bodyMedium,
-                                        fontWeight = FontWeight.Bold
-                                    )
-                                }
-                                Row {
-                                    TextButton(onClick = { detectedReference = null }) {
-                                        Text("Ignore")
-                                    }
-                                    Button(onClick = {
-                                        val fetched = bibleHelper.getVerses(ref.book, ref.chapter, ref.verses)
-                                        if (fetched != null) {
-                                            val referenceText = ref.originalText
-                                            
-                                            val text = contentValue.text
-                                            val selection = contentValue.selection
-                                            val textBeforeCursor = text.take(selection.start)
-                                            val textAfterCursor = text.substring(selection.end)
-                                            val lineStart = textBeforeCursor.lastIndexOf('\n') + 1
-                                            val currentLine = textBeforeCursor.substring(lineStart)
-                                            
-                                            val booksList = BibleData.catholicBooks.toMutableList()
-                                            val abbrevList = BibleData.abbreviations.keys.toList()
-                                            val allPatterns = (booksList + abbrevList).sortedByDescending { it.length }.joinToString("|") { Regex.escape(it) }
-                                            val regex = Regex("""\b(${allPatterns})\s+(\d+)(?::(\d+(?:-\d+)?(?:\s*,\s*\d+(?:-\d+)?)*))?\b""", RegexOption.IGNORE_CASE)
-                                            val match = regex.find(currentLine)
-                                            
-                                            val newText: String
-                                            val newSelection: TextRange
-                                            
-                                            if (match != null) {
-                                                val lineBeforeMatch = currentLine.take(match.range.first)
-                                                val lineAfterMatch = currentLine.substring(match.range.last + 1)
-                                                val replacement = "$referenceText\n$fetched"
-                                                val newLine = lineBeforeMatch + replacement + lineAfterMatch
-                                                newText = text.take(lineStart) + newLine + "\n" + textAfterCursor
-                                                newSelection = TextRange(lineStart + lineBeforeMatch.length + replacement.length + 1)
-                                            } else {
-                                                val appendText = "\n$referenceText\n$fetched\n"
-                                                newText = text.take(selection.start) + appendText + textAfterCursor
-                                                newSelection = TextRange(selection.start + appendText.length)
-                                            }
-                                            
-                                            val oldContent = contentValue
-                                            contentValue = contentValue.copy(text = newText, selection = newSelection)
-                                            
-                                            scope.launch {
-                                                lastContentValue = oldContent
-                                                val result = snackbarHostState.showSnackbar(
-                                                    message = "Verse added",
-                                                    actionLabel = "Undo",
-                                                    duration = SnackbarDuration.Short
-                                                )
-                                                if (result == SnackbarResult.ActionPerformed) {
-                                                    lastContentValue?.let {
-                                                        contentValue = it
-                                                    }
-                                                }
-                                            }
-                                        }
-                                        detectedReference = null 
-                                    }) {
-                                        Text("Add")
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
-
-                Surface(tonalElevation = 3.dp) {
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .windowInsetsPadding(WindowInsets.ime)
-                            .padding(horizontal = 8.dp, vertical = 4.dp),
-                        horizontalArrangement = Arrangement.spacedBy(8.dp)
-                    ) {
-                        IconButton(onClick = { contentValue = applyFormat(contentValue, "**") }) {
-                            Icon(Icons.Default.FormatBold, contentDescription = "Bold")
-                        }
-                        IconButton(onClick = { contentValue = applyFormat(contentValue, "_") }) {
-                            Icon(Icons.Default.FormatItalic, contentDescription = "Italic")
-                        }
-                        IconButton(onClick = { 
-                            val newText = if (contentValue.text.endsWith("\n") || contentValue.text.isEmpty()) {
-                                contentValue.text + "1. "
-                            } else {
-                                contentValue.text + "\n1. "
-                            }
-                            contentValue = contentValue.copy(text = newText, selection = TextRange(newText.length))
-                        }) {
-                            Icon(Icons.Default.FormatListNumbered, contentDescription = "Numbered List")
-                        }
-                    }
-                }
-            }
-        },
-        contentWindowInsets = WindowInsets.statusBars
-    ) { padding ->
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(padding)
-                .padding(16.dp)
-        ) {
-            TextField(
-                value = title,
-                onValueChange = { title = it },
-                placeholder = { Text("Title", style = MaterialTheme.typography.headlineSmall) },
-                modifier = Modifier.fillMaxWidth(),
-                colors = TextFieldDefaults.colors(
-                    focusedContainerColor = Color.Transparent,
-                    unfocusedContainerColor = Color.Transparent,
-                    disabledContainerColor = Color.Transparent,
-                    focusedIndicatorColor = Color.Transparent,
-                    unfocusedIndicatorColor = Color.Transparent
-                ),
-                textStyle = MaterialTheme.typography.headlineSmall,
-                keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Sentences)
-            )
-            TextField(
-                value = contentValue,
-                onValueChange = { newValue ->
-                    contentValue = handleAutoList(contentValue, newValue)
-                },
-                placeholder = { Text("Note") },
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .weight(1f)
-                    .tutorialTarget(TutorialStep.RICH_TEXT_EDITOR),
-                colors = TextFieldDefaults.colors(
-                    focusedContainerColor = Color.Transparent,
-                    unfocusedContainerColor = Color.Transparent,
-                    disabledContainerColor = Color.Transparent,
-                    focusedIndicatorColor = Color.Transparent,
-                    unfocusedIndicatorColor = Color.Transparent
-                ),
-                keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Sentences),
-                visualTransformation = MarkdownVisualTransformation(boldColor)
-            )
-        }
-    }
-}
-
-class MarkdownVisualTransformation(private val boldColor: Color) : VisualTransformation {
-    override fun filter(text: AnnotatedString): TransformedText {
-        // Identity mapping requires original and transformed lengths to be identical.
-        return TransformedText(
-            text = parseMarkdown(text.text, hideMarkers = false, highlightColor = boldColor),
-            offsetMapping = OffsetMapping.Identity
-        )
-    }
-}
-
-fun parseMarkdown(text: String, hideMarkers: Boolean, highlightColor: Color): AnnotatedString = buildAnnotatedString {
-    if (text.isEmpty()) return@buildAnnotatedString
-    
-    val markerStyle = SpanStyle(color = Color.Gray.copy(alpha = 0.2f))
-    val refHighlightColor = Color(0xFFFFD700) // Gold
-    
-    // Pre-calculate all Bible matches once for the entire text
-    val bibleMatches = BibleData.bibleRefRegex.findAll(text).toList()
-    
-    var i = 0
-    while (i < text.length) {
-        // Check if current index is start of a Bible reference
-        val bibleMatch = bibleMatches.find { it.range.first == i }
-        
-        when {
-            bibleMatch != null -> {
-                withStyle(SpanStyle(color = refHighlightColor, fontWeight = FontWeight.Medium)) {
-                    append(bibleMatch.value)
-                }
-                i += bibleMatch.value.length
-            }
-            text.startsWith("**", i) -> {
-                val end = text.indexOf("**", i + 2)
-                if (end != -1) {
-                    if (hideMarkers) {
-                        withStyle(SpanStyle(fontWeight = FontWeight.Bold, color = highlightColor)) {
-                            append(text.substring(i + 2, end))
-                        }
-                    } else {
-                        withStyle(markerStyle) { append("**") }
-                        withStyle(SpanStyle(fontWeight = FontWeight.Bold, color = highlightColor)) {
-                            append(text.substring(i + 2, end))
-                        }
-                        withStyle(markerStyle) { append("**") }
-                    }
-                    i = end + 2
-                } else {
-                    append(text[i])
-                    i++
-                }
-            }
-            text.startsWith("_", i) -> {
-                val end = text.indexOf("_", i + 1)
-                if (end != -1) {
-                    if (hideMarkers) {
-                        withStyle(SpanStyle(fontStyle = FontStyle.Italic)) {
-                            append(text.substring(i + 1, end))
-                        }
-                    } else {
-                        withStyle(markerStyle) { append("_") }
-                        withStyle(SpanStyle(fontStyle = FontStyle.Italic)) {
-                            append(text.substring(i + 1, end))
-                        }
-                        withStyle(markerStyle) { append("_") }
-                    }
-                    i = end + 1
-                } else {
-                    append(text[i])
-                    i++
-                }
-            }
-            else -> {
-                append(text[i])
-                i++
-            }
-        }
-    }
-}
-
-data class BibleRef(val book: String, val chapter: Int, val verses: List<Pair<Int, Int?>>, val originalText: String)
-
-fun findBibleReference(line: String): BibleRef? {
-    val booksList = BibleData.catholicBooks.toMutableList()
-    val abbrevList = BibleData.abbreviations.keys.toList()
-    
-    val allPatterns = (booksList + abbrevList).sortedByDescending { it.length }.joinToString("|") { Regex.escape(it) }
-    
-    // Matches: Book Chapter[:VerseRange[, VerseRange]*]
-    // VerseRange is StartVerse[-EndVerse]
-    val regex = Regex("""\b(${allPatterns})\s+(\d+)(?::(\d+(?:-\d+)?(?:\s*,\s*\d+(?:-\d+)?)*))?\b""", RegexOption.IGNORE_CASE)
-    
-    val match = regex.find(line)
-    if (match != null) {
-        val matchedName = match.groupValues[1]
-        val chapter = match.groupValues[2].toInt()
-        val versesStr = match.groupValues[3]
-        
-        // Map abbreviation back to full name if necessary
-        val book = BibleData.abbreviations.entries.find { it.key.equals(matchedName, ignoreCase = true) }?.value 
-                  ?: matchedName
-        
-        val verseRanges = if (versesStr.isEmpty()) {
-            emptyList()
-        } else {
-            versesStr.split(",").map { rangeStr ->
-                val parts = rangeStr.trim().split("-")
-                val start = parts[0].toInt()
-                val end = if (parts.size > 1) parts[1].toInt() else null
-                start to end
-            }
-        }
-        
-        return BibleRef(
-            book = book,
-            chapter = chapter,
-            verses = verseRanges,
-            originalText = match.value
-        )
-    }
-    return null
-}
-
-fun handleAutoList(oldValue: TextFieldValue, newValue: TextFieldValue): TextFieldValue {
-    if (newValue.text.length != oldValue.text.length + 1) return newValue
-    if (newValue.text[newValue.selection.start - 1] != '\n') return newValue
-
-    val textBeforeNewline = newValue.text.take(newValue.selection.start - 1)
-    val lastLineStart = textBeforeNewline.lastIndexOf('\n') + 1
-    val lastLine = textBeforeNewline.substring(lastLineStart)
-
-    val orderedListRegex = Regex("""^(\d+)\.\s+(.*)$""")
-    val orderedMatch = orderedListRegex.find(lastLine)
-    if (orderedMatch != null) {
-        val number = orderedMatch.groupValues[1].toInt()
-        val content = orderedMatch.groupValues[2]
-        
-        if (content.isEmpty()) {
-            val newText = newValue.text.take(lastLineStart) + newValue.text.substring(newValue.selection.start)
-            return newValue.copy(text = newText, selection = TextRange(lastLineStart))
-        }
-        
-        val prefix = "${number + 1}. "
-        val newText = newValue.text.take(newValue.selection.start) + prefix + newValue.text.substring(newValue.selection.start)
-        return newValue.copy(text = newText, selection = TextRange(newValue.selection.start + prefix.length))
-    }
-
-    val bulletListRegex = Regex("""^([-*])\s+(.*)$""")
-    val bulletMatch = bulletListRegex.find(lastLine)
-    if (bulletMatch != null) {
-        val bullet = bulletMatch.groupValues[1]
-        val content = bulletMatch.groupValues[2]
-        
-        if (content.isEmpty()) {
-            val newText = newValue.text.take(lastLineStart) + newValue.text.substring(newValue.selection.start)
-            return newValue.copy(text = newText, selection = TextRange(lastLineStart))
-        }
-        
-        val prefix = "$bullet "
-        val newText = newValue.text.take(newValue.selection.start) + prefix + newValue.text.substring(newValue.selection.start)
-        return newValue.copy(text = newText, selection = TextRange(newValue.selection.start + prefix.length))
-    }
-    
-    val checklistRegex = Regex("""^(-\s\[\s]\s)(.*)$""")
-    val checklistMatch = checklistRegex.find(lastLine)
-    if (checklistMatch != null) {
-        val prefix = checklistMatch.groupValues[1]
-        val content = checklistMatch.groupValues[2]
-        
-        if (content.isEmpty()) {
-            val newText = newValue.text.take(lastLineStart) + newValue.text.substring(newValue.selection.start)
-            return newValue.copy(text = newText, selection = TextRange(lastLineStart))
-        }
-        
-        val newText = newValue.text.take(newValue.selection.start) + prefix + newValue.text.substring(newValue.selection.start)
-        return newValue.copy(text = newText, selection = TextRange(newValue.selection.start + prefix.length))
-    }
-
-    return newValue
-}
-
-fun applyFormat(value: TextFieldValue, symbol: String): TextFieldValue {
-    val selection = value.selection
-    val text = value.text
-    
-    val formatted = if (selection.collapsed) {
-        text.take(selection.start) + symbol + symbol + text.substring(selection.end)
-    } else {
-        text.take(selection.start) + symbol + text.substring(selection.start, selection.end) + symbol + text.substring(selection.end)
-    }
-    
-    val newCursorPos = if (selection.collapsed) selection.start + symbol.length else selection.end + symbol.length * 2
-    return value.copy(text = formatted, selection = TextRange(newCursorPos))
-}
-
-@Composable
-fun AddCategoryDialog(onDismiss: () -> Unit, onConfirm: (String) -> Unit) {
-    var name by remember { mutableStateOf("") }
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = { Text("New Category", style = MaterialTheme.typography.headlineSmall, color = MaterialTheme.colorScheme.primary) },
-        text = {
-            OutlinedTextField(
-                value = name,
-                onValueChange = { name = it },
-                label = { Text("Category Name") },
-                modifier = Modifier.fillMaxWidth(),
-                keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Sentences),
-                colors = OutlinedTextFieldDefaults.colors(
-                    focusedBorderColor = MaterialTheme.colorScheme.primary,
-                    unfocusedBorderColor = MaterialTheme.colorScheme.outline
-                )
-            )
-        },
-        confirmButton = {
-            Button(
-                onClick = { if (name.isNotBlank()) onConfirm(name) },
-                colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary)
-            ) { 
-                Text("Add", fontWeight = FontWeight.Bold) 
-            }
-        },
-        dismissButton = {
-            TextButton(onClick = onDismiss) { 
-                Text("Cancel", color = MaterialTheme.colorScheme.outline) 
-            }
-        }
-    )
-}
-
-@Composable
-fun RenameCategoryDialog(currentName: String, onDismiss: () -> Unit, onConfirm: (String) -> Unit) {
-    var name by remember { mutableStateOf(currentName) }
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = { Text("Rename Category", style = MaterialTheme.typography.headlineSmall, color = MaterialTheme.colorScheme.primary) },
-        text = {
-            OutlinedTextField(
-                value = name,
-                onValueChange = { name = it },
-                label = { Text("Category Name") },
-                modifier = Modifier.fillMaxWidth(),
-                keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Sentences),
-                singleLine = true,
-                colors = OutlinedTextFieldDefaults.colors(
-                    focusedBorderColor = MaterialTheme.colorScheme.primary,
-                    unfocusedBorderColor = MaterialTheme.colorScheme.outline
-                )
-            )
-        },
-        confirmButton = {
-            Button(
-                onClick = { if (name.isNotBlank()) onConfirm(name) },
-                colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary)
-            ) { 
-                Text("Rename", fontWeight = FontWeight.Bold) 
-            }
-        },
-        dismissButton = {
-            TextButton(onClick = onDismiss) { 
-                Text("Cancel", color = MaterialTheme.colorScheme.outline) 
-            }
-        }
-    )
-}
-
-@Composable
-fun ReorderCategoriesDialog(
-    categories: List<PersonalNoteCategory>,
-    onDismiss: () -> Unit,
-    onConfirm: (List<PersonalNoteCategory>) -> Unit,
-    onDelete: (PersonalNoteCategory) -> Unit,
-    onRename: (PersonalNoteCategory) -> Unit
-) {
-    val editableCategories = remember { mutableStateListOf<PersonalNoteCategory>().apply { addAll(categories) } }
-    var draggedCategoryId by remember { mutableStateOf<String?>(null) }
-    var dragOffset by remember { mutableStateOf(0f) }
-
-    LaunchedEffect(categories) {
-        val currentIds = categories.map { it.id }.toSet()
-        editableCategories.removeAll { it.id !in currentIds }
-        // Update names for existing categories while preserving order of items in editableCategories
-        categories.forEach { source ->
-            val index = editableCategories.indexOfFirst { it.id == source.id }
-            if (index != -1 && editableCategories[index].name != source.name) {
-                editableCategories[index] = editableCategories[index].copy(name = source.name)
-            }
-        }
-    }
-
-    Dialog(
-        onDismissRequest = onDismiss,
-        properties = DialogProperties(usePlatformDefaultWidth = false)
-    ) {
-        Surface(
-            modifier = Modifier
-                .fillMaxWidth(0.9f)
-                .fillMaxHeight(0.7f),
-            shape = RoundedCornerShape(24.dp),
-            color = MaterialTheme.colorScheme.surface,
-            tonalElevation = 6.dp
-        ) {
-            Column(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(24.dp)
-            ) {
-                Text(
-                    "Reorder Categories",
-                    style = MaterialTheme.typography.headlineSmall,
-                    fontWeight = FontWeight.Bold
-                )
-
-                Spacer(modifier = Modifier.height(8.dp))
-
-                Text(
-                    "Long press and drag to reorder",
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-
-                Spacer(modifier = Modifier.height(16.dp))
-
-                Column(
-                    modifier = Modifier
-                        .weight(1f)
-                        .fillMaxWidth(),
-                    verticalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    editableCategories.forEachIndexed { _, category ->
-                        val isDragging = draggedCategoryId == category.id
-                        val itemHeight = 64.dp
-                        val spacingHeight = 8.dp
-                        val totalItemHeight = itemHeight + spacingHeight
-
-                        Surface(
-                            shape = RoundedCornerShape(12.dp),
-                            tonalElevation = if (isDragging) 16.dp else 2.dp,
-                            shadowElevation = if (isDragging) 24.dp else 0.dp,
-                            color = if (isDragging)
-                                MaterialTheme.colorScheme.primaryContainer
-                            else
-                                MaterialTheme.colorScheme.surfaceVariant,
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .graphicsLayer {
-                                    if (isDragging) {
-                                        translationY = dragOffset
-                                        scaleX = 1.05f
-                                        scaleY = 1.05f
-                                    }
-                                }
-                                .pointerInput(editableCategories.size) {
-                                    detectDragGesturesAfterLongPress(
-                                        onDragStart = {
-                                            draggedCategoryId = category.id
-                                            dragOffset = 0f
-                                        },
-                                        onDragEnd = {
-                                            draggedCategoryId = null
-                                            dragOffset = 0f
-                                        },
-                                        onDragCancel = {
-                                            draggedCategoryId = null
-                                            dragOffset = 0f
-                                        },
-                                        onDrag = { change, dragAmount ->
-                                            change.consume()
-                                            dragOffset += dragAmount.y
-
-                                            // Find current position of the dragged item
-                                            val currentIndex = editableCategories.indexOfFirst { it.id == category.id }
-
-                                            if (currentIndex != -1) {
-                                                // Calculate target position based on accumulated drag offset
-                                                val displacement = (dragOffset / totalItemHeight.toPx()).toInt()
-                                                val targetIndex = (currentIndex + displacement).coerceIn(0, editableCategories.lastIndex)
-
-                                                // Move item if we've crossed a boundary
-                                                if (targetIndex != currentIndex) {
-                                                    val item = editableCategories.removeAt(currentIndex)
-                                                    editableCategories.add(targetIndex, item)
-
-                                                    // Adjust drag offset to compensate for the position change
-                                                    dragOffset -= (targetIndex - currentIndex) * totalItemHeight.toPx()
-                                                }
-                                            }
-                                        }
-                                    )
-                                }
-                        ) {
-                            Row(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .padding(16.dp),
-                                verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.spacedBy(12.dp)
-                            ) {
-                                Icon(
-                                    Icons.Default.DragHandle,
-                                    contentDescription = "Drag to reorder",
-                                    tint = if (isDragging)
-                                        MaterialTheme.colorScheme.primary
-                                    else
-                                        MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
-                                    modifier = Modifier.size(24.dp)
-                                )
-                                Text(
-                                    text = category.name,
-                                    style = MaterialTheme.typography.titleMedium,
-                                    fontWeight = if (isDragging) FontWeight.Bold else FontWeight.Normal,
-                                    modifier = Modifier.weight(1f)
-                                )
-                                IconButton(
-                                    onClick = { onRename(category) },
-                                    modifier = Modifier.size(40.dp)
-                                ) {
-                                    Icon(
-                                        Icons.Default.Edit,
-                                        contentDescription = "Rename Category",
-                                        tint = MaterialTheme.colorScheme.primary,
-                                        modifier = Modifier.size(20.dp)
-                                    )
-                                }
-                                IconButton(
-                                    onClick = { onDelete(category) },
-                                    modifier = Modifier.size(40.dp)
-                                ) {
-                                    Icon(
-                                        Icons.Default.Delete,
-                                        contentDescription = "Delete Category",
-                                        tint = MaterialTheme.colorScheme.error,
-                                        modifier = Modifier.size(20.dp)
-                                    )
-                                }
-                            }
-                        }
-                    }
-                }
-
-                Spacer(modifier = Modifier.height(16.dp))
-
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.End,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    TextButton(onClick = onDismiss) {
-                        Text("Cancel", color = MaterialTheme.colorScheme.outline)
-                    }
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Button(
-                        onClick = { onConfirm(editableCategories.toList()) },
-                        colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary)
-                    ) {
-                        Text("Save", fontWeight = FontWeight.Bold)
-                    }
-                }
-            }
-        }
-    }
-}
-

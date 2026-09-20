@@ -1,5 +1,6 @@
 package com.rhinepereira.faithflow
 
+import android.content.Context
 import android.content.Intent
 import android.os.Bundle
 import androidx.activity.ComponentActivity
@@ -8,6 +9,8 @@ import androidx.activity.enableEdgeToEdge
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -15,12 +18,12 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
+import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
+import androidx.lifecycle.lifecycleScope
 import androidx.lifecycle.viewmodel.compose.viewModel
-import com.rhinepereira.faithflow.ui.AuthState
-import com.rhinepereira.faithflow.ui.AuthViewModel
-import com.rhinepereira.faithflow.ui.LoginScreen
-import com.rhinepereira.faithflow.ui.MainContainer
-import com.rhinepereira.faithflow.ui.theme.FaithFlowTheme
+import com.google.android.material.snackbar.Snackbar
+import com.google.android.play.core.appupdate.AppUpdateInfo
 import com.google.android.play.core.appupdate.AppUpdateManager
 import com.google.android.play.core.appupdate.AppUpdateManagerFactory
 import com.google.android.play.core.appupdate.AppUpdateOptions
@@ -30,17 +33,21 @@ import com.google.android.play.core.install.model.InstallStatus
 import com.google.android.play.core.install.model.UpdateAvailability
 import com.google.android.play.core.ktx.isFlexibleUpdateAllowed
 import com.google.android.play.core.ktx.isImmediateUpdateAllowed
+import com.google.firebase.analytics.FirebaseAnalytics
+import com.google.firebase.analytics.ktx.analytics
 import com.google.firebase.ktx.Firebase
 import com.google.firebase.remoteconfig.FirebaseRemoteConfig
 import com.google.firebase.remoteconfig.ktx.remoteConfig
 import com.google.firebase.remoteconfig.ktx.remoteConfigSettings
-import android.widget.Toast
-import com.google.android.material.snackbar.Snackbar
-import com.google.firebase.analytics.FirebaseAnalytics
-import com.google.firebase.analytics.ktx.analytics
-import com.google.firebase.crashlytics.ktx.crashlytics
-import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
-import androidx.lifecycle.lifecycleScope
+import com.rhinepereira.faithflow.ui.AuthState
+import com.rhinepereira.faithflow.ui.AuthViewModel
+import com.rhinepereira.faithflow.ui.LocalTutorialState
+import com.rhinepereira.faithflow.ui.LoginScreen
+import com.rhinepereira.faithflow.ui.MainContainer
+import com.rhinepereira.faithflow.ui.TutorialOverlay
+import com.rhinepereira.faithflow.ui.TutorialState
+import com.rhinepereira.faithflow.ui.TutorialStep
+import com.rhinepereira.faithflow.ui.theme.FaithFlowTheme
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
@@ -67,7 +74,7 @@ class MainActivity : ComponentActivity() {
             delay(400)
             setupRemoteConfig()
         }
-        
+
         enableEdgeToEdge()
         setContent {
             FaithFlowTheme {
@@ -87,20 +94,20 @@ class MainActivity : ComponentActivity() {
                         LoginScreen(authViewModel)
                     }
                     is AuthState.SignedIn -> {
-                        val context = androidx.compose.ui.platform.LocalContext.current
-                        val prefs = remember { context.getSharedPreferences("faithflow_prefs", android.content.Context.MODE_PRIVATE) }
-                        
+                        val context = LocalContext.current
+                        val prefs = remember { context.getSharedPreferences("faithflow_prefs", Context.MODE_PRIVATE) }
+
                         // If onboarding is not complete, we start at ADD_THEME_FAB. Otherwise DONE.
                         val isComplete = prefs.getBoolean("onboarding_complete", false)
-                        val tutorialState = remember { 
-                            com.rhinepereira.faithflow.ui.TutorialState(if (isComplete) com.rhinepereira.faithflow.ui.TutorialStep.DONE else com.rhinepereira.faithflow.ui.TutorialStep.ADD_THEME_FAB) 
+                        val tutorialState = remember {
+                            TutorialState(if (isComplete) TutorialStep.DONE else TutorialStep.ADD_THEME_FAB)
                         }
 
-                        androidx.compose.runtime.CompositionLocalProvider(
-                            com.rhinepereira.faithflow.ui.LocalTutorialState provides tutorialState
+                        CompositionLocalProvider(
+                            LocalTutorialState provides tutorialState
                         ) {
-                            androidx.compose.runtime.LaunchedEffect(tutorialState.currentStep) {
-                                if (tutorialState.currentStep == com.rhinepereira.faithflow.ui.TutorialStep.DONE) {
+                            LaunchedEffect(tutorialState.currentStep) {
+                                if (tutorialState.currentStep == TutorialStep.DONE) {
                                     prefs.edit().putBoolean("onboarding_complete", true).apply()
                                 }
                             }
@@ -120,8 +127,8 @@ class MainActivity : ComponentActivity() {
                                     }
                                 )
 
-                                if (tutorialState.isActive && tutorialState.currentStep != com.rhinepereira.faithflow.ui.TutorialStep.DONE) {
-                                    com.rhinepereira.faithflow.ui.TutorialOverlay(
+                                if (tutorialState.isActive && tutorialState.currentStep != TutorialStep.DONE) {
+                                    TutorialOverlay(
                                         state = tutorialState,
                                         onFinished = {
                                             // Handled by LaunchedEffect
@@ -187,7 +194,7 @@ class MainActivity : ComponentActivity() {
         }
     }
 
-    private fun startUpdateFlow(info: com.google.android.play.core.appupdate.AppUpdateInfo, type: Int) {
+    private fun startUpdateFlow(info: AppUpdateInfo, type: Int) {
         appUpdateManager.startUpdateFlowForResult(
             info,
             this,
@@ -226,6 +233,8 @@ class MainActivity : ComponentActivity() {
         appUpdateManager.unregisterListener(installStateUpdatedListener)
     }
 
+    @Deprecated("Deprecated in Java")
+    @Suppress("DEPRECATION")
     override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
         super.onActivityResult(requestCode, resultCode, data)
         if (requestCode == updateRequestCode) {

@@ -1,14 +1,15 @@
 package com.rhinepereira.faithflow.data
 
 import android.content.Context
-import androidx.work.*
-import com.rhinepereira.faithflow.sync.SyncWorker
-import com.google.firebase.auth.FirebaseAuth
+import com.rhinepereira.faithflow.sync.SyncScheduler
 import io.github.jan.supabase.postgrest.postgrest
-import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.withContext
 
+/**
+ * Repository for personal notes and note categories, coordinating Room caching and Supabase synchronization.
+ */
 class PersonalNoteRepository(private val context: Context, private val verseDao: VerseDao) {
 
     fun getAllCategories(userId: String): Flow<List<PersonalNoteCategory>> = verseDao.getAllCategories(userId)
@@ -17,9 +18,7 @@ class PersonalNoteRepository(private val context: Context, private val verseDao:
 
     fun getAllNotes(userId: String): Flow<List<PersonalNote>> = verseDao.getAllPersonalNotes(userId)
 
-    private fun getCurrentUserId(): String {
-        return FirebaseAuth.getInstance().currentUser?.uid ?: ""
-    }
+    private fun getCurrentUserId(): String = AuthRepository.currentUserId ?: ""
 
     suspend fun insertCategory(category: PersonalNoteCategory) {
         verseDao.insertCategory(category.copy(isSynced = false, userId = getCurrentUserId()))
@@ -51,7 +50,7 @@ class PersonalNoteRepository(private val context: Context, private val verseDao:
 
     suspend fun deleteCategory(category: PersonalNoteCategory) {
         val userId = getCurrentUserId()
-        
+
         // Soft-delete all notes in this category first.
         val notesInCategory = verseDao.getNotesForCategorySync(category.id)
         notesInCategory.forEach { note ->
@@ -60,7 +59,7 @@ class PersonalNoteRepository(private val context: Context, private val verseDao:
 
         // Soft-delete the category locally.
         verseDao.updateCategory(category.copy(isDeleted = true, isSynced = false, userId = userId))
-        
+
         // Let SyncWorker handle remote deletion
         scheduleSync()
     }
@@ -112,23 +111,6 @@ class PersonalNoteRepository(private val context: Context, private val verseDao:
     }
 
     fun scheduleSync() {
-        val constraints = Constraints.Builder()
-            .setRequiredNetworkType(NetworkType.CONNECTED)
-            .build()
-
-        val syncRequest = OneTimeWorkRequestBuilder<SyncWorker>()
-            .setConstraints(constraints)
-            .setBackoffCriteria(
-                BackoffPolicy.EXPONENTIAL,
-                WorkRequest.MIN_BACKOFF_MILLIS,
-                java.util.concurrent.TimeUnit.MILLISECONDS
-            )
-            .build()
-
-        WorkManager.getInstance(context).enqueueUniqueWork(
-            "supabase_sync",
-            ExistingWorkPolicy.REPLACE,
-            syncRequest
-        )
+        SyncScheduler.scheduleSync(context)
     }
 }
