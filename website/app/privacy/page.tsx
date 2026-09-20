@@ -1,0 +1,127 @@
+import type { Metadata } from "next";
+import Link from "next/link";
+import LegalPage from "@/components/LegalPage";
+
+export const metadata: Metadata = {
+  title: "Privacy Policy — FaithFlow",
+  description: "How FaithFlow collects, uses, and protects your data.",
+};
+
+export default function PrivacyPolicy() {
+  return (
+    <LegalPage title="Privacy Policy" updated="May 2026">
+      <p>
+        This Privacy Policy describes Our policies and procedures on the
+        collection, use and disclosure of Your information when You use the
+        FaithFlow application (the &ldquo;Service&rdquo;) and tells You about
+        Your privacy rights and how the law protects You.
+      </p>
+
+      <h2>1. Information We Collect</h2>
+      <h3>Personal Data</h3>
+      <p>
+        While using Our Service, We may ask You to provide Us with certain
+        personally identifiable information that can be used to contact or
+        identify You. This includes:
+      </p>
+      <ul>
+        <li>
+          <strong>Authentication Information:</strong> We use Google Sign-In
+          and Firebase Authentication. We collect your basic profile
+          information (such as name and email) provided by these services to
+          create and manage your account.
+        </li>
+        <li>
+          <strong>User Content:</strong> Any Bible verses, personal notes,
+          themes, or daily records you save within the app are stored
+          securely in our database (Supabase) and associated with your
+          account.
+        </li>
+      </ul>
+
+      <h3>Usage and Diagnostic Data</h3>
+      <p>
+        We use third-party services to collect information about how the
+        Service is used and to help us troubleshoot technical issues:
+      </p>
+      <ul>
+        <li>
+          <strong>Firebase Analytics:</strong> We collect anonymized usage
+          data (e.g., app interaction times, feature usage) to improve the
+          Service.
+        </li>
+        <li>
+          <strong>Firebase Crashlytics:</strong> We collect crash reports and
+          diagnostic information to identify and fix bugs. This data may
+          include device information and stack traces.
+        </li>
+      </ul>
+
+      <h2>2. How We Use Your Data</h2>
+      <p>We use the collected data for various purposes:</p>
+      <ul>
+        <li>To provide and maintain our Service.</li>
+        <li>
+          To manage Your Account and synchronize your notes and saved verses
+          across your devices.
+        </li>
+        <li>To notify you about changes to our Service.</li>
+        <li>To provide customer support.</li>
+        <li>To detect, prevent and address technical issues.</li>
+      </ul>
+
+      <h2>3. Third-Party Services</h2>
+      <p>
+        We may employ third-party companies and individuals due to the
+        following reasons:
+      </p>
+      <ul>
+        <li>To facilitate our Service;</li>
+        <li>To provide the Service on our behalf;</li>
+        <li>To perform Service-related services; or</li>
+        <li>To assist us in analyzing how our Service is used.</li>
+      </ul>
+      <p>Specific third-party services we use include:</p>
+      <ul>
+        <li>
+          <strong>Google Sign-In &amp; Firebase:</strong> For user
+          authentication, identity management, analytics, and crash
+          reporting.
+        </li>
+        <li>
+          <strong>Supabase:</strong> For secure database hosting and storage
+          of your user-generated content.
+        </li>
+      </ul>
+
+      <h2>4. Security of Your Data</h2>
+      <p>
+        The security of your data is important to us. Your data is encrypted
+        and stored securely using industry-standard cloud providers. However,
+        remember that no method of transmission over the Internet or method
+        of electronic storage is 100% secure.
+      </p>
+
+      <h2>5. Deletion of Your Data</h2>
+      <p>
+        You have the right to request the deletion of your Personal Data that
+        We have collected about You. You can delete your account and
+        associated data directly within the app or by contacting us. For
+        detailed instructions, please visit our{" "}
+        <Link href="/data-deletion">Data Deletion Page</Link>.
+      </p>
+
+      <h2>6. Changes to This Privacy Policy</h2>
+      <p>
+        We may update our Privacy Policy from time to time. We will notify
+        You of any changes by posting the new Privacy Policy on this page.
+      </p>
+
+      <h2>7. Contact Us</h2>
+      <p>
+        If you have any questions about this Privacy Policy, please contact
+        us at <strong>rhine.pereira@gmail.com</strong>.
+      </p>
+    </LegalPage>
+  );
+}

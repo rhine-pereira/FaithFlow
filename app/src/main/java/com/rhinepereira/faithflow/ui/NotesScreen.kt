@@ -144,12 +144,17 @@ fun NotesScreen(
             verticalAlignment = Alignment.CenterVertically
         ) {
             IconButton(
-                onClick = { showReorderDialog = true }
+                onClick = { showReorderDialog = true },
+                enabled = categories.isNotEmpty()
             ) {
                 Icon(
                     Icons.Default.Edit,
                     contentDescription = "Manage Categories",
-                    tint = MaterialTheme.colorScheme.primary
+                    tint = if (categories.isNotEmpty()) {
+                        MaterialTheme.colorScheme.primary
+                    } else {
+                        MaterialTheme.colorScheme.outline.copy(alpha = 0.38f)
+                    }
                 )
             }
             IconButton(

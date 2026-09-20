@@ -58,6 +58,17 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.unit.dp
+import androidx.compose.foundation.layout.height
+import androidx.compose.material.icons.automirrored.filled.Redo
+import androidx.compose.material.icons.automirrored.filled.Undo
+import androidx.compose.material3.VerticalDivider
+import androidx.compose.ui.input.key.Key
+import androidx.compose.ui.input.key.KeyEventType
+import androidx.compose.ui.input.key.isCtrlPressed
+import androidx.compose.ui.input.key.isShiftPressed
+import androidx.compose.ui.input.key.key
+import androidx.compose.ui.input.key.onPreviewKeyEvent
+import androidx.compose.ui.input.key.type
 import com.rhinepereira.faithflow.data.BibleDatabaseHelper
 import com.rhinepereira.faithflow.data.PersonalNote
 import com.rhinepereira.faithflow.ui.TutorialStep
@@ -76,27 +87,28 @@ fun FullScreenNoteEditor(
     onDismiss: () -> Unit,
     onSave: (String, String) -> Unit
 ) {
-    var title by remember { mutableStateOf(note.title) }
-    var contentValue by remember { mutableStateOf(TextFieldValue(note.content)) }
+    val undoManager = rememberNoteUndoRedoManager(
+        initialTitle = note.title,
+        initialContent = TextFieldValue(note.content)
+    )
     val context = LocalContext.current
     val bibleHelper = remember { BibleDatabaseHelper(context) }
     val boldColor = MaterialTheme.colorScheme.primary
 
     val snackbarHostState = remember { SnackbarHostState() }
     val scope = rememberCoroutineScope()
-    var lastContentValue by remember { mutableStateOf<TextFieldValue?>(null) }
     var detectedReference by remember { mutableStateOf<BibleRef?>(null) }
 
-    LaunchedEffect(title, contentValue.text) {
-        if (title != note.title || contentValue.text != note.content) {
+    LaunchedEffect(undoManager.title, undoManager.content.text) {
+        if (undoManager.title != note.title || undoManager.content.text != note.content) {
             delay(500)  // Reduced from 5000ms to 500ms to minimize data loss risk
-            onSave(title, contentValue.text)
+            onSave(undoManager.title, undoManager.content.text)
         }
     }
 
-    LaunchedEffect(contentValue) {
-        val text = contentValue.text
-        val selection = contentValue.selection
+    LaunchedEffect(undoManager.content) {
+        val text = undoManager.content.text
+        val selection = undoManager.content.selection
         if (selection.collapsed && text.isNotEmpty()) {
             val textBeforeCursor = text.take(selection.start)
             val lastLine = textBeforeCursor.split("\n").lastOrNull() ?: ""
@@ -112,14 +124,40 @@ fun FullScreenNoteEditor(
     }
 
     val dismissAndSave = {
-        onSave(title, contentValue.text)
+        onSave(undoManager.title, undoManager.content.text)
         onDismiss()
     }
 
     BackHandler { dismissAndSave() }
 
     Scaffold(
-        modifier = Modifier.fillMaxSize(),
+        modifier = Modifier
+            .fillMaxSize()
+            .onPreviewKeyEvent { keyEvent ->
+                if (keyEvent.type == KeyEventType.KeyDown && keyEvent.isCtrlPressed) {
+                    when {
+                        keyEvent.key == Key.Z && keyEvent.isShiftPressed -> {
+                            if (undoManager.canRedo) {
+                                undoManager.redo()
+                                true
+                            } else false
+                        }
+                        keyEvent.key == Key.Z -> {
+                            if (undoManager.canUndo) {
+                                undoManager.undo()
+                                true
+                            } else false
+                        }
+                        keyEvent.key == Key.Y -> {
+                            if (undoManager.canRedo) {
+                                undoManager.redo()
+                                true
+                            } else false
+                        }
+                        else -> false
+                    }
+                } else false
+            },
         topBar = {
             TopAppBar(
                 title = {},
@@ -139,20 +177,17 @@ fun FullScreenNoteEditor(
                     onAddVerse = { ref ->
                         val fetched = bibleHelper.getVerses(ref.book, ref.chapter, ref.verses)
                         if (fetched != null) {
-                            val oldContent = contentValue
-                            contentValue = insertBibleVerse(contentValue, ref, fetched)
+                            val newContent = insertBibleVerse(undoManager.content, ref, fetched)
+                            undoManager.recordExplicitContentChange(newContent)
 
                             scope.launch {
-                                lastContentValue = oldContent
                                 val result = snackbarHostState.showSnackbar(
                                     message = "Verse added",
                                     actionLabel = "Undo",
                                     duration = SnackbarDuration.Short
                                 )
                                 if (result == SnackbarResult.ActionPerformed) {
-                                    lastContentValue?.let {
-                                        contentValue = it
-                                    }
+                                    undoManager.undo()
                                 }
                             }
                         }
@@ -161,15 +196,24 @@ fun FullScreenNoteEditor(
                 )
 
                 FormattingToolbar(
-                    onBoldClick = { contentValue = applyFormat(contentValue, "**") },
-                    onItalicClick = { contentValue = applyFormat(contentValue, "_") },
+                    canUndo = undoManager.canUndo,
+                    canRedo = undoManager.canRedo,
+                    onUndoClick = { undoManager.undo() },
+                    onRedoClick = { undoManager.redo() },
+                    onBoldClick = { undoManager.recordExplicitContentChange(applyFormat(undoManager.content, "**")) },
+                    onItalicClick = { undoManager.recordExplicitContentChange(applyFormat(undoManager.content, "_")) },
                     onNumberedListClick = {
-                        val newText = if (contentValue.text.endsWith("\n") || contentValue.text.isEmpty()) {
-                            contentValue.text + "1. "
+                        val currentText = undoManager.content.text
+                        val newText = if (currentText.endsWith("\n") || currentText.isEmpty()) {
+                            currentText + "1. "
                         } else {
-                            contentValue.text + "\n1. "
+                            currentText + "\n1. "
                         }
-                        contentValue = contentValue.copy(text = newText, selection = TextRange(newText.length))
+                        val newContent = undoManager.content.copy(
+                            text = newText,
+                            selection = TextRange(newText.length)
+                        )
+                        undoManager.recordExplicitContentChange(newContent)
                     }
                 )
             }
@@ -183,8 +227,8 @@ fun FullScreenNoteEditor(
                 .padding(16.dp)
         ) {
             TextField(
-                value = title,
-                onValueChange = { title = it },
+                value = undoManager.title,
+                onValueChange = { undoManager.onTitleChange(it) },
                 placeholder = { Text("Title", style = MaterialTheme.typography.headlineSmall) },
                 modifier = Modifier.fillMaxWidth(),
                 colors = TextFieldDefaults.colors(
@@ -198,9 +242,10 @@ fun FullScreenNoteEditor(
                 keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Sentences)
             )
             TextField(
-                value = contentValue,
+                value = undoManager.content,
                 onValueChange = { newValue ->
-                    contentValue = handleAutoList(contentValue, newValue)
+                    val processed = handleAutoList(undoManager.content, newValue)
+                    undoManager.onContentChange(processed)
                 },
                 placeholder = { Text("Note") },
                 modifier = Modifier
@@ -275,10 +320,14 @@ fun BibleReferenceBar(
 }
 
 /**
- * Bottom action toolbar containing markdown quick-actions (bold, italic, numbered list).
+ * Bottom action toolbar containing markdown quick-actions and undo/redo buttons.
  */
 @Composable
 fun FormattingToolbar(
+    canUndo: Boolean = false,
+    canRedo: Boolean = false,
+    onUndoClick: () -> Unit = {},
+    onRedoClick: () -> Unit = {},
     onBoldClick: () -> Unit,
     onItalicClick: () -> Unit,
     onNumberedListClick: () -> Unit,
@@ -293,8 +342,33 @@ fun FormattingToolbar(
                 .fillMaxWidth()
                 .windowInsetsPadding(WindowInsets.ime)
                 .padding(horizontal = 8.dp, vertical = 4.dp),
-            horizontalArrangement = Arrangement.spacedBy(8.dp)
+            horizontalArrangement = Arrangement.spacedBy(4.dp),
+            verticalAlignment = Alignment.CenterVertically
         ) {
+            IconButton(
+                onClick = onUndoClick,
+                enabled = canUndo
+            ) {
+                Icon(
+                    Icons.AutoMirrored.Filled.Undo,
+                    contentDescription = "Undo"
+                )
+            }
+            IconButton(
+                onClick = onRedoClick,
+                enabled = canRedo
+            ) {
+                Icon(
+                    Icons.AutoMirrored.Filled.Redo,
+                    contentDescription = "Redo"
+                )
+            }
+            VerticalDivider(
+                modifier = Modifier
+                    .height(24.dp)
+                    .padding(horizontal = 4.dp),
+                color = MaterialTheme.colorScheme.outlineVariant
+            )
             IconButton(onClick = onBoldClick) {
                 Icon(Icons.Default.FormatBold, contentDescription = "Bold")
             }

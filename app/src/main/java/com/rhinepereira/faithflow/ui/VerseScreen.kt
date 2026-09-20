@@ -21,6 +21,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.layout.LayoutCoordinates
+import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.zIndex
@@ -135,11 +137,15 @@ fun VerseScreen(
                         val dragStepX = with(density) { (((maxWidth - 32.dp - 12.dp) / 2f) + 12.dp).toPx() }
                         val dragStepY = with(density) { (180.dp + 12.dp).toPx() }
                         val edgeThresholdPx = with(density) { 96.dp.toPx() }
+                        var gridCoordinates by remember { mutableStateOf<LayoutCoordinates?>(null) }
+                        val cardCoordinatesMap = remember { mutableMapOf<String, LayoutCoordinates>() }
 
                         LazyVerticalGrid(
                             state = gridState,
                             columns = GridCells.Fixed(2),
-                            modifier = Modifier.fillMaxSize(),
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .onGloballyPositioned { coords -> gridCoordinates = coords },
                             contentPadding = PaddingValues(16.dp),
                             horizontalArrangement = Arrangement.spacedBy(12.dp),
                             verticalArrangement = Arrangement.spacedBy(12.dp)
@@ -162,6 +168,9 @@ fun VerseScreen(
                                                 scaleX = 1.035f
                                                 scaleY = 1.035f
                                             }
+                                        }
+                                        .onGloballyPositioned { coords ->
+                                            cardCoordinatesMap[noteWithVerses.note.id] = coords
                                         }
                                         .pointerInput(noteWithVerses.note.id) {
                                             detectDragGesturesAfterLongPress(
@@ -196,13 +205,18 @@ fun VerseScreen(
                                                         accumulatedDrag.y + dragAmount.y
                                                     )
 
-                                                    // Edge auto-scroll like Keep
-                                                    val yInGrid = change.position.y
-                                                    val nearTop = yInGrid < edgeThresholdPx
-                                                    val nearBottom = yInGrid > (size.height - edgeThresholdPx)
-                                                    if (nearTop || nearBottom) {
-                                                        scope.launch {
-                                                            gridState.scrollBy(if (nearTop) -32f else 32f)
+                                                    // Edge auto-scroll relative to grid container
+                                                    val cardCoords = cardCoordinatesMap[noteWithVerses.note.id]
+                                                    val gridCoords = gridCoordinates
+                                                    if (cardCoords != null && cardCoords.isAttached && gridCoords != null && gridCoords.isAttached) {
+                                                        val touchInGrid = gridCoords.localPositionOf(cardCoords, change.position)
+                                                        val gridHeight = gridCoords.size.height.toFloat()
+                                                        val nearTop = touchInGrid.y < edgeThresholdPx
+                                                        val nearBottom = touchInGrid.y > (gridHeight - edgeThresholdPx)
+                                                        if (nearTop || nearBottom) {
+                                                            scope.launch {
+                                                                gridState.scrollBy(if (nearTop) -32f else 32f)
+                                                            }
                                                         }
                                                     }
 
