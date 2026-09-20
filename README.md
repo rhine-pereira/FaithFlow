@@ -85,5 +85,19 @@ FaithFlow is a local-first Android app for tracking your scripture life: verse t
    - Kotlin: 2.0.21
    - Gradle: 8.13.2
 
+### 🚀 Release Process
+- **Versioning**: Always increment `versionCode` in `app/build.gradle.kts` before uploading a new build to Google Play.
+- **Signing**: Configure the following in `local.properties` for release builds:
+  ```properties
+  RELEASE_STORE_FILE=/path/to/your/keystore.jks
+  RELEASE_STORE_PASSWORD=your_keystore_password
+  RELEASE_KEY_ALIAS=your_key_alias
+  RELEASE_KEY_PASSWORD=your_key_password
+  ```
+- **Build**: Run `./gradlew bundleRelease` to generate the Android App Bundle (AAB).
+- **Output**: The AAB will be at `app/build/outputs/bundle/release/app-release.aab`.
+- **Fingerprints**: Use `keytool -list -v -keystore your_keystore.jks` to get SHA-1 and SHA-256 fingerprints for Firebase and Google Cloud Console.
+- **Rollout**: Follow the [Play Store Rollout Guide](docs/PLAY_STORE_ROLLOUT.md).
+
 ---
 Developed as a Catholic-friendly tool for scripture study, prayer, and reflection.

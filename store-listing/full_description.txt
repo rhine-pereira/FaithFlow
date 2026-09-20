@@ -1,0 +1,12 @@
+FaithFlow is a local-first Android app for tracking your scripture life: verse themes, personal notes, and daily walk records, with cloud sync and offline support.
+
+🚀 Features:
+- Google Sign-In for secure cloud sync.
+- Create and manage verse themes.
+- Manual verse entry or import from the Android Share Sheet.
+- Rich-text personal notes with Bible reference detection.
+- Daily walk tracker to record reading, prayer, and insights.
+- Local Bible database (bible.db) for quick verse lookup.
+- In-app updates and tutorial overlay.
+
+Developed as a Catholic-friendly tool for scripture study, prayer, and reflection.

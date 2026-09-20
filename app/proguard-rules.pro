@@ -30,3 +30,33 @@
     public static int e(...);
     public static int wtf(...);
 }
+
+# Room
+-keep class androidx.room.RoomDatabase
+-keep class * extends androidx.room.RoomDatabase
+-keep class * extends androidx.room.Entity
+-keep class * extends androidx.room.Dao
+
+# Kotlinx Serialization
+-keepattributes RuntimeVisibleAnnotations, RuntimeVisibleParameterAnnotations
+-keepclassmembers class * {
+    @org.jetbrains.kotlinx.serialization.Serializable *;
+}
+-keep class kotlinx.serialization.json.** { *; }
+
+# Firebase
+-keep class com.google.firebase.** { *; }
+
+# Supabase / Ktor
+-keep class io.github.jan_tennert.supabase.** { *; }
+-keep class io.ktor.** { *; }
+
+# Credential Manager / Google ID
+-keep class androidx.credentials.** { *; }
+-keep class com.google.android.libraries.identity.googleid.** { *; }
+
+# Play App Update
+-keep class com.google.android.play.core.** { *; }
+
+# Crashlytics stack traces
+-keepattributes SourceFile,LineNumberTable

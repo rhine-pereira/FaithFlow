@@ -48,7 +48,8 @@ import kotlinx.coroutines.launch
 fun VerseScreen(
     viewModel: VerseViewModel = viewModel(),
     sharedText: String? = null,
-    onSharedTextConsumed: () -> Unit = {}
+    onSharedTextConsumed: () -> Unit = {},
+    isVisible: Boolean = true
 ) {
     var selectedNoteWithVerses by remember { mutableStateOf<NoteWithVerses?>(null) }
     var showAddNoteDialog by remember { mutableStateOf(false) }
@@ -61,7 +62,7 @@ fun VerseScreen(
     var noteToRename by remember { mutableStateOf<Note?>(null) }
     var verseToDelete by remember { mutableStateOf<Verse?>(null) }
 
-    val notesWithVerses by viewModel.allNotesWithVerses.collectAsState(initial = emptyList<NoteWithVerses>())
+    val notesWithVerses = viewModel.allNotesWithVerses.collectAsStateWhenVisible(isVisible)
     var orderedNotesWithVerses by remember { mutableStateOf(emptyList<NoteWithVerses>()) }
     var draggedThemeId by remember { mutableStateOf<String?>(null) }
     var dragOffset by remember { mutableStateOf(Offset.Zero) }
@@ -70,8 +71,10 @@ fun VerseScreen(
     val scope = rememberCoroutineScope()
     val gridState = androidx.compose.foundation.lazy.grid.rememberLazyGridState()
 
-    LaunchedEffect(notesWithVerses) {
-        orderedNotesWithVerses = viewModel.applySavedThemeOrder(notesWithVerses)
+    LaunchedEffect(notesWithVerses, draggedThemeId) {
+        if (draggedThemeId == null) {
+            orderedNotesWithVerses = viewModel.applySavedThemeOrder(notesWithVerses)
+        }
     }
 
     LaunchedEffect(sharedText) {
@@ -160,7 +163,7 @@ fun VerseScreen(
                                                 scaleY = 1.035f
                                             }
                                         }
-                                        .pointerInput(noteWithVerses.note.id, displayedThemes.map { it.note.id }) {
+                                        .pointerInput(noteWithVerses.note.id) {
                                             detectDragGesturesAfterLongPress(
                                                 onDragStart = {
                                                     draggedThemeId = noteWithVerses.note.id
@@ -233,7 +236,8 @@ fun VerseScreen(
                 }
             } else {
                 // Verses List for selected Theme
-                val verses by viewModel.getVersesForNote(selectedNoteWithVerses!!.note.id).collectAsState(initial = emptyList<Verse>())
+                val verses = viewModel.getVersesForNote(selectedNoteWithVerses!!.note.id)
+                    .collectAsStateWhenVisible(isVisible, emptyList())
                 BackHandler { selectedNoteWithVerses = null }
 
                 LazyColumn(

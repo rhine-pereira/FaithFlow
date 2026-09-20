@@ -37,11 +37,17 @@ import java.text.SimpleDateFormat
 import java.util.*
 
 @Composable
-fun DailyScreen(viewModel: DailyViewModel = viewModel()) {
-    val currentRecord by viewModel.currentRecord.collectAsState()
-    val targetDate by viewModel.targetDate.collectAsState()
-    val isSealing by viewModel.isSealing.collectAsState()
-    val allRecords by viewModel.allDailyRecords.collectAsState(initial = emptyList())
+fun DailyScreen(
+    viewModel: DailyViewModel = viewModel(),
+    isVisible: Boolean = true
+) {
+    val currentRecord = viewModel.currentRecord.collectAsStateWhenVisible(isVisible)
+    val targetDate = viewModel.targetDate.collectAsStateWhenVisible(isVisible)
+    val isSealing = viewModel.isSealing.collectAsStateWhenVisible(isVisible)
+    val allRecords = viewModel.allDailyRecords.collectAsStateWhenVisible(isVisible)
+    val recordsByDay = remember(allRecords) {
+        allRecords.associateBy { getStartOfDay(it.date) }
+    }
     val scrollState = rememberScrollState()
 
     // Calendar State
@@ -195,7 +201,7 @@ fun DailyScreen(viewModel: DailyViewModel = viewModel()) {
                             Box(modifier = Modifier.weight(1f).aspectRatio(1f)) {
                                 if (date != null) {
                                     val dateMillis = date.timeInMillis
-                                    val record = allRecords.find { isSameDay(it.date, dateMillis) }
+                                    val record = recordsByDay[getStartOfDay(dateMillis)]
                                     val isSelected = isSameDay(targetDate, dateMillis)
                                     val isToday = isSameDay(dateMillis, todayMillis)
                                     

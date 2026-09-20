@@ -18,9 +18,9 @@ class NotesViewModel(application: Application) : AndroidViewModel(application) {
     private val verseRepository: VerseRepository
     private val dao: VerseDao
 
-    private val authRepository = AuthRepository()
     
     val categories: StateFlow<List<PersonalNoteCategory>>
+    val allPersonalNotes: StateFlow<List<PersonalNote>>
 
     init {
         val database = AppDatabase.getDatabase(application)
@@ -28,7 +28,7 @@ class NotesViewModel(application: Application) : AndroidViewModel(application) {
         repository = PersonalNoteRepository(application, dao)
         verseRepository = VerseRepository(application, dao)
 
-        val authStatus = authRepository.authStatusFlow()
+        val authStatus = AuthRepository.authStatus
 
         categories = authStatus.flatMapLatest { status ->
             when (status) {
@@ -39,12 +39,20 @@ class NotesViewModel(application: Application) : AndroidViewModel(application) {
             }
         }.stateIn(
             scope = viewModelScope,
-            started = SharingStarted.WhileSubscribed(5000),
+            started = SharingStarted.Eagerly,
             initialValue = emptyList()
         )
 
-        // Note: VerseViewModel already handles fetchFromSupabase on auth,
-        // so we don't need to duplicate it here to avoid redundant sync calls
+        allPersonalNotes = authStatus.flatMapLatest { status ->
+            when (status) {
+                is AuthStatus.Authenticated -> repository.getAllNotes(status.userId)
+                else -> flowOf(emptyList())
+            }
+        }.stateIn(
+            scope = viewModelScope,
+            started = SharingStarted.Eagerly,
+            initialValue = emptyList()
+        )
     }
 
     fun getNotesForCategory(categoryId: String): Flow<List<PersonalNote>> = repository.getNotesForCategory(categoryId)
@@ -111,16 +119,11 @@ class NotesViewModel(application: Application) : AndroidViewModel(application) {
 
     fun syncFromCloud() {
         viewModelScope.launch {
-            val userId = try {
-                authRepository.authStatusFlow().first()
-                when (val status = authRepository.authStatusFlow().first()) {
-                    is AuthStatus.Authenticated -> status.userId
-                    else -> return@launch
-                }
-            } catch (e: Exception) {
-                return@launch
+            val userId = when (val status = AuthRepository.authStatus.first()) {
+                is AuthStatus.Authenticated -> status.userId
+                else -> return@launch
             }
-            repository.syncFromCloud(userId)
+            verseRepository.fetchFromSupabaseIfNeeded(userId, force = true)
         }
     }
 }

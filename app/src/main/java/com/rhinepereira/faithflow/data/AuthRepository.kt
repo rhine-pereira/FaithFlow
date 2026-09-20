@@ -6,10 +6,15 @@ import com.google.firebase.auth.GoogleAuthProvider
 import kotlinx.coroutines.tasks.await
 import kotlinx.coroutines.channels.awaitClose
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.SharingStarted
+import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.callbackFlow
 import kotlinx.coroutines.flow.onStart
+import kotlinx.coroutines.flow.stateIn
 import io.github.jan.supabase.postgrest.postgrest
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.withContext
 
 sealed class AuthStatus {
@@ -18,13 +23,12 @@ sealed class AuthStatus {
     data class Authenticated(val userId: String, val user: FirebaseUser) : AuthStatus()
 }
 
-class AuthRepository {
+/** Single auth listener for the whole app — avoids duplicate Firebase callbacks and sync storms. */
+object AuthRepository {
     private val auth = FirebaseAuth.getInstance()
+    private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
 
-    val currentUserId: String?
-        get() = auth.currentUser?.uid
-
-    fun authStatusFlow(): Flow<AuthStatus> = callbackFlow {
+    val authStatus: StateFlow<AuthStatus> = callbackFlow {
         val listener = FirebaseAuth.AuthStateListener { firebaseAuth ->
             val user = firebaseAuth.currentUser
             if (user != null) {
@@ -39,9 +43,19 @@ class AuthRepository {
         }
     }.onStart {
         emit(AuthStatus.Loading)
-    }
+    }.stateIn(
+        scope = scope,
+        started = SharingStarted.Eagerly,
+        initialValue = AuthStatus.Loading
+    )
+
+    fun authStatusFlow(): Flow<AuthStatus> = authStatus
+
+    val currentUserId: String?
+        get() = auth.currentUser?.uid
 
     suspend fun signOut() {
+        CloudSyncGate.invalidate()
         auth.signOut()
     }
 
@@ -51,10 +65,10 @@ class AuthRepository {
     }
 
     suspend fun deleteAccount() = withContext(Dispatchers.IO) {
+        CloudSyncGate.invalidate()
         val user = auth.currentUser ?: throw Exception("No authenticated user")
         val userId = user.uid
 
-        // Clear user data from Supabase
         try {
             SupabaseConfig.client.postgrest["notes"].delete { filter { eq("user_id", userId) } }
             SupabaseConfig.client.postgrest["verses"].delete { filter { eq("user_id", userId) } }
@@ -65,7 +79,6 @@ class AuthRepository {
             e.printStackTrace()
         }
 
-        // Delete the Firebase Auth User
         user.delete().await()
     }
 }

@@ -9,14 +9,16 @@ import com.rhinepereira.faithflow.data.*
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.filter
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flowOf
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 
 class VerseViewModel(application: Application) : AndroidViewModel(application) {
     private val repository: VerseRepository
-    private val authRepository = AuthRepository()
     private val themeOrderPrefs = application.getSharedPreferences("theme_order_prefs", Context.MODE_PRIVATE)
     val allNotesWithVerses: StateFlow<List<NoteWithVerses>>
 
@@ -24,7 +26,7 @@ class VerseViewModel(application: Application) : AndroidViewModel(application) {
         val verseDao = AppDatabase.getDatabase(application).verseDao()
         repository = VerseRepository(application, verseDao)
         
-        allNotesWithVerses = authRepository.authStatusFlow()
+        allNotesWithVerses = AuthRepository.authStatus
             .flatMapLatest { status ->
                 when (status) {
                     is AuthStatus.Authenticated -> {
@@ -35,17 +37,19 @@ class VerseViewModel(application: Application) : AndroidViewModel(application) {
             }
             .stateIn(
                 scope = viewModelScope,
-                started = SharingStarted.WhileSubscribed(5000),
+                started = SharingStarted.Eagerly,
                 initialValue = emptyList()
             )
         
-        // Initial fetch from cloud after authentication
+        // Background sync: Room is the cache; skip network if synced recently.
         viewModelScope.launch {
-            authRepository.authStatusFlow().collect { status ->
-                if (status is AuthStatus.Authenticated) {
-                    repository.fetchFromSupabase(status.userId)
+            AuthRepository.authStatus
+                .filter { it is AuthStatus.Authenticated }
+                .map { (it as AuthStatus.Authenticated).userId }
+                .distinctUntilChanged()
+                .collect { userId ->
+                    repository.fetchFromSupabaseIfNeeded(userId)
                 }
-            }
         }
     }
 

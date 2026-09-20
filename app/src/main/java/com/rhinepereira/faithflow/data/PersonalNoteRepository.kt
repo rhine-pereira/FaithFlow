@@ -15,6 +15,8 @@ class PersonalNoteRepository(private val context: Context, private val verseDao:
 
     fun getNotesForCategory(categoryId: String): Flow<List<PersonalNote>> = verseDao.getNotesForCategory(categoryId)
 
+    fun getAllNotes(userId: String): Flow<List<PersonalNote>> = verseDao.getAllPersonalNotes(userId)
+
     private fun getCurrentUserId(): String {
         return FirebaseAuth.getInstance().currentUser?.uid ?: ""
     }

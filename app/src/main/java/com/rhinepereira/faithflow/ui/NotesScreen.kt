@@ -11,11 +11,14 @@ import androidx.compose.foundation.gestures.detectDragGesturesAfterLongPress
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.lazy.staggeredgrid.LazyVerticalStaggeredGrid
-import androidx.compose.foundation.lazy.staggeredgrid.StaggeredGridCells
-import androidx.compose.foundation.lazy.staggeredgrid.items
+import androidx.compose.foundation.lazy.grid.GridCells
+import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
+import androidx.compose.foundation.lazy.grid.items
+import androidx.compose.foundation.lazy.grid.rememberLazyGridState
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
+import androidx.compose.runtime.snapshotFlow
+import androidx.compose.foundation.lazy.grid.LazyGridState
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.material.pullrefresh.PullRefreshIndicator
 import androidx.compose.material.pullrefresh.pullRefresh
@@ -70,8 +73,24 @@ import java.util.*
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalMaterialApi::class)
 @Composable
-fun NotesScreen(viewModel: NotesViewModel = viewModel()) {
-    val categories by viewModel.categories.collectAsState(initial = emptyList())
+fun NotesScreen(
+    viewModel: NotesViewModel = viewModel(),
+    isVisible: Boolean = true
+) {
+    val categories = viewModel.categories.collectAsStateWhenVisible(isVisible)
+    val allPersonalNotes = viewModel.allPersonalNotes.collectAsStateWhenVisible(isVisible)
+    val dateFormat = remember { SimpleDateFormat("dd MMM", Locale.getDefault()) }
+    val noteCardsByCategory = remember(allPersonalNotes, dateFormat) {
+        allPersonalNotes.groupBy { it.categoryId }.mapValues { (_, notes) ->
+            notes.map { note ->
+                NoteListItem(
+                    note = note,
+                    dateLabel = dateFormat.format(Date(note.date)),
+                    preview = plainTextPreview(note.content)
+                )
+            }
+        }
+    }
     var noteToEdit by remember { mutableStateOf<PersonalNote?>(null) }
     var showAddCategoryDialog by remember { mutableStateOf(false) }
     var noteToDelete by remember { mutableStateOf<PersonalNote?>(null) }
@@ -92,7 +111,22 @@ fun NotesScreen(viewModel: NotesViewModel = viewModel()) {
         }
     )
 
-    val pagerState = rememberPagerState(pageCount = { categories.size })
+    val pagerState = rememberPagerState(pageCount = { categories.size.coerceAtLeast(0) })
+    var tabIndex by remember { mutableIntStateOf(0) }
+
+    LaunchedEffect(pagerState, categories.size) {
+        snapshotFlow { pagerState.settledPage }.collect { page ->
+            if (page in categories.indices) {
+                tabIndex = page
+            }
+        }
+    }
+
+    LaunchedEffect(categories.size) {
+        if (categories.isNotEmpty() && pagerState.currentPage >= categories.size) {
+            pagerState.scrollToPage(categories.lastIndex)
+        }
+    }
 
     if (noteToEdit != null) {
         Dialog(
@@ -135,14 +169,14 @@ fun NotesScreen(viewModel: NotesViewModel = viewModel()) {
 
         if (categories.isNotEmpty()) {
             ScrollableTabRow(
-                selectedTabIndex = pagerState.currentPage,
+                selectedTabIndex = tabIndex,
                 edgePadding = 16.dp,
                 divider = {},
                 containerColor = Color.Transparent,
                 indicator = { tabPositions ->
-                    if (pagerState.currentPage < tabPositions.size) {
+                    if (tabIndex < tabPositions.size) {
                         TabRowDefaults.SecondaryIndicator(
-                            Modifier.tabIndicatorOffset(tabPositions[pagerState.currentPage]),
+                            Modifier.tabIndicatorOffset(tabPositions[tabIndex]),
                             color = MaterialTheme.colorScheme.primary
                         )
                     }
@@ -150,17 +184,22 @@ fun NotesScreen(viewModel: NotesViewModel = viewModel()) {
             ) {
                 categories.forEachIndexed { index: Int, category: PersonalNoteCategory ->
                     Tab(
-                        selected = pagerState.currentPage == index,
+                        selected = tabIndex == index,
                         onClick = {
+                            tabIndex = index
                             coroutineScope.launch {
-                                pagerState.animateScrollToPage(index)
+                                pagerState.scrollToPage(index)
                             }
                         },
-                        text = { 
+                        text = {
                             Text(
                                 category.name,
-                                color = if (pagerState.currentPage == index) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outline
-                            ) 
+                                color = if (tabIndex == index) {
+                                    MaterialTheme.colorScheme.primary
+                                } else {
+                                    MaterialTheme.colorScheme.outline
+                                }
+                            )
                         }
                     )
                 }
@@ -178,34 +217,19 @@ fun NotesScreen(viewModel: NotesViewModel = viewModel()) {
             } else {
                 HorizontalPager(
                     state = pagerState,
-                    modifier = Modifier.fillMaxSize()
+                    modifier = Modifier.fillMaxSize(),
+                    beyondViewportPageCount = 1,
+                    key = { pageIndex -> categories.getOrNull(pageIndex)?.id ?: pageIndex }
                 ) { pageIndex: Int ->
-                val category = categories.getOrNull(pageIndex) ?: return@HorizontalPager
-                val notes by viewModel.getNotesForCategory(category.id).collectAsState(initial = emptyList<PersonalNote>())
-                
-                if (notes.isEmpty()) {
-                    Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                        Text("No notes here yet.", color = MaterialTheme.colorScheme.outline)
-                    }
-                } else {
-                    LazyVerticalStaggeredGrid(
-                        columns = StaggeredGridCells.Fixed(2),
-                        modifier = Modifier.fillMaxSize(),
-                        contentPadding = PaddingValues(16.dp, 16.dp, 16.dp, 80.dp),
-                        horizontalArrangement = Arrangement.spacedBy(12.dp),
-                        verticalItemSpacing = 12.dp
-                    ) {
-                        items(notes, key = { it.id }) { note: PersonalNote ->
-                            KeepNoteItem(
-                                note = note,
-                                onClick = { noteToEdit = note },
-                                onDelete = { noteToDelete = note }
-                            )
-                        }
-                    }
+                    val category = categories.getOrNull(pageIndex) ?: return@HorizontalPager
+                    CategoryNotesPage(
+                        categoryId = category.id,
+                        items = noteCardsByCategory[category.id].orEmpty(),
+                        onNoteClick = { noteToEdit = it },
+                        onNoteDelete = { noteToDelete = it }
+                    )
                 }
             }
-        }
 
             if (categories.isNotEmpty()) {
                 FloatingActionButton(
@@ -216,7 +240,7 @@ fun NotesScreen(viewModel: NotesViewModel = viewModel()) {
                         calendar.set(Calendar.SECOND, 0)
                         calendar.set(Calendar.MILLISECOND, 0)
                         
-                        val currentCategoryId = categories.getOrNull(pagerState.currentPage)?.id ?: ""
+                        val currentCategoryId = categories.getOrNull(tabIndex)?.id ?: ""
                         
                         noteToEdit = PersonalNote(
                             categoryId = currentCategoryId, 
@@ -305,12 +329,13 @@ fun NotesScreen(viewModel: NotesViewModel = viewModel()) {
             categories = categories,
             onDismiss = { showReorderDialog = false },
             onConfirm = { reorderedCategories ->
-                val currentId = categories.getOrNull(pagerState.currentPage)?.id
+                val currentId = categories.getOrNull(tabIndex)?.id
                 viewModel.reorderCategories(reorderedCategories)
                 showReorderDialog = false
                 currentId?.let { selectedId ->
                     val targetIndex = reorderedCategories.indexOfFirst { it.id == selectedId }
                     if (targetIndex >= 0) {
+                        tabIndex = targetIndex
                         coroutineScope.launch { pagerState.scrollToPage(targetIndex) }
                     }
                 }
@@ -332,9 +357,67 @@ fun NotesScreen(viewModel: NotesViewModel = viewModel()) {
     }
 }
 
+private data class NoteListItem(
+    val note: PersonalNote,
+    val dateLabel: String,
+    val preview: String
+)
+
+/** Fast preview for grid cards — full markdown parsing runs only in the editor. */
+private fun plainTextPreview(content: String): String {
+    if (content.isBlank()) return ""
+    return content
+        .replace("**", "")
+        .replace("_", "")
+        .lineSequence()
+        .take(8)
+        .joinToString("\n")
+        .take(400)
+}
+
 @Composable
-fun KeepNoteItem(note: PersonalNote, onClick: () -> Unit, onDelete: () -> Unit) {
-    val previewHighlight = MaterialTheme.colorScheme.primary
+private fun CategoryNotesPage(
+    categoryId: String,
+    items: List<NoteListItem>,
+    onNoteClick: (PersonalNote) -> Unit,
+    onNoteDelete: (PersonalNote) -> Unit
+) {
+    val gridState = remember(categoryId) { LazyGridState() }
+
+    if (items.isEmpty()) {
+        Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+            Text("No notes here yet.", color = MaterialTheme.colorScheme.outline)
+        }
+    } else {
+        LazyVerticalGrid(
+            state = gridState,
+            columns = GridCells.Fixed(2),
+            modifier = Modifier.fillMaxSize(),
+            contentPadding = PaddingValues(16.dp, 16.dp, 16.dp, 80.dp),
+            horizontalArrangement = Arrangement.spacedBy(12.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            items(items, key = { it.note.id }) { item ->
+                KeepNoteItem(
+                    note = item.note,
+                    preview = item.preview,
+                    dateLabel = item.dateLabel,
+                    onClick = { onNoteClick(item.note) },
+                    onDelete = { onNoteDelete(item.note) }
+                )
+            }
+        }
+    }
+}
+
+@Composable
+fun KeepNoteItem(
+    note: PersonalNote,
+    onClick: () -> Unit,
+    onDelete: () -> Unit,
+    preview: String = plainTextPreview(note.content),
+    dateLabel: String? = null
+) {
     Card(
         modifier = Modifier
             .fillMaxWidth()
@@ -378,17 +461,16 @@ fun KeepNoteItem(note: PersonalNote, onClick: () -> Unit, onDelete: () -> Unit) 
             if (note.title.isNotBlank()) Spacer(modifier = Modifier.height(8.dp))
             
             Text(
-                text = parseMarkdown(note.content, hideMarkers = true, highlightColor = previewHighlight),
+                text = preview,
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurface,
                 maxLines = 8,
                 overflow = TextOverflow.Ellipsis
             )
-            
+
             Spacer(modifier = Modifier.height(12.dp))
-            val df = SimpleDateFormat("dd MMM", Locale.getDefault())
             Text(
-                text = df.format(Date(note.date)),
+                text = dateLabel ?: SimpleDateFormat("dd MMM", Locale.getDefault()).format(Date(note.date)),
                 style = MaterialTheme.typography.labelSmall,
                 color = MaterialTheme.colorScheme.primary.copy(alpha = 0.7f)
             )

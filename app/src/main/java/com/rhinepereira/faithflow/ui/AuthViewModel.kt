@@ -6,6 +6,7 @@ import androidx.lifecycle.viewModelScope
 import com.rhinepereira.faithflow.data.AppDatabase
 import com.rhinepereira.faithflow.data.AuthRepository
 import com.rhinepereira.faithflow.data.AuthStatus
+import com.rhinepereira.faithflow.data.CloudSyncGate
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -20,14 +21,12 @@ sealed class AuthState {
 }
 
 class AuthViewModel : ViewModel() {
-    private val authRepository = AuthRepository()
-
     private val _authState = MutableStateFlow<AuthState>(AuthState.Loading)
     val authState: StateFlow<AuthState> = _authState.asStateFlow()
 
     init {
         viewModelScope.launch {
-            authRepository.authStatusFlow().collect { status ->
+            AuthRepository.authStatus.collect { status ->
                 _authState.value = when (status) {
                     is AuthStatus.Authenticated -> AuthState.SignedIn(status.userId)
                     is AuthStatus.Unauthenticated -> AuthState.SignedOut
@@ -39,14 +38,14 @@ class AuthViewModel : ViewModel() {
 
     fun signOut() {
         viewModelScope.launch {
-            authRepository.signOut()
+            AuthRepository.signOut()
         }
     }
 
     fun signInWithGoogle(idToken: String, onResult: (Boolean) -> Unit) {
         viewModelScope.launch {
             try {
-                authRepository.signInWithGoogle(idToken)
+                AuthRepository.signInWithGoogle(idToken)
                 onResult(true)
             } catch (e: Exception) {
                 onResult(false)
@@ -61,9 +60,10 @@ class AuthViewModel : ViewModel() {
                 withContext(Dispatchers.IO) {
                     AppDatabase.getDatabase(context).clearAllTables()
                 }
-                
+                CloudSyncGate.invalidate()
+
                 // Erase remote data and Firebase Auth
-                authRepository.deleteAccount()
+                AuthRepository.deleteAccount()
                 
                 onResult(true)
             } catch (e: Exception) {

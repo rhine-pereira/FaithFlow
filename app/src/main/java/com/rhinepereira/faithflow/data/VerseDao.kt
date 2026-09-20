@@ -75,6 +75,9 @@ interface VerseDao {
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertCategory(category: PersonalNoteCategory)
 
+    @Query("SELECT * FROM personal_notes WHERE userId = :userId AND isDeleted = 0 ORDER BY date DESC")
+    fun getAllPersonalNotes(userId: String): Flow<List<PersonalNote>>
+
     @Query("SELECT * FROM personal_notes WHERE categoryId = :categoryId AND isDeleted = 0 ORDER BY date DESC")
     fun getNotesForCategory(categoryId: String): Flow<List<PersonalNote>>
 

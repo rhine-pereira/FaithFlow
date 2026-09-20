@@ -15,6 +15,9 @@ import androidx.credentials.GetCredentialRequest
 import com.google.android.libraries.identity.googleid.GetGoogleIdOption
 import com.rhinepereira.faithflow.BuildConfig
 import com.rhinepereira.faithflow.R
+import com.rhinepereira.faithflow.ui.LegalLinks
+import com.google.firebase.analytics.ktx.analytics
+import com.google.firebase.ktx.Firebase
 import kotlinx.coroutines.launch
 import android.util.Log
 
@@ -69,7 +72,9 @@ fun LoginScreen(viewModel: AuthViewModel) {
                                     Log.d(TAG, "Got ID Token, signing into Firebase...")
                                     viewModel.signInWithGoogle(result) { success ->
                                         isLoading = false
-                                        if (!success) {
+                                        if (success) {
+                                            Firebase.analytics.logEvent("login_success", null)
+                                        } else {
                                             errorMessage = "Firebase Sign-In failed. Check logs."
                                             Log.e(TAG, "Firebase signInWithGoogle returned false")
                                         }
@@ -111,6 +116,22 @@ fun LoginScreen(viewModel: AuthViewModel) {
                     style = MaterialTheme.typography.bodyMedium,
                     textAlign = TextAlign.Center
                 )
+            }
+
+            Spacer(modifier = Modifier.height(32.dp))
+
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.Center,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                TextButton(onClick = { LegalLinks.openPrivacyPolicy(context) }) {
+                    Text("Privacy Policy", style = MaterialTheme.typography.labelLarge)
+                }
+                Text("•", color = MaterialTheme.colorScheme.outline)
+                TextButton(onClick = { LegalLinks.openTermsAndConditions(context) }) {
+                    Text("Terms", style = MaterialTheme.typography.labelLarge)
+                }
             }
         }
     }

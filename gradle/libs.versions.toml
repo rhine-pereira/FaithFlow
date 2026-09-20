@@ -19,12 +19,15 @@ secrets = "2.0.1"
 navigation = "2.8.8"
 materialIconsExtended = "1.7.8"
 material = "1.7.8"
-credentials = "1.5.0-rc01"
+credentials = "1.5.0"
 googleid = "1.1.1"
 firebaseBom = "33.9.0"
 googleServices = "4.4.2"
+firebaseCrashlyticsPlugin = "3.0.3"
 playCore = "2.1.0"
 androidMaterial = "1.12.0"
+coreSplashscreen = "1.0.1"
+androidxBrowser = "1.8.0"
 
 
 [libraries]
@@ -61,10 +64,16 @@ firebase-bom = { group = "com.google.firebase", name = "firebase-bom", version.r
 firebase-auth = { group = "com.google.firebase", name = "firebase-auth" }
 firebase-auth-ktx = { group = "com.google.firebase", name = "firebase-auth-ktx" }
 firebase-config = { group = "com.google.firebase", name = "firebase-config" }
+firebase-analytics = { group = "com.google.firebase", name = "firebase-analytics" }
+firebase-crashlytics = { group = "com.google.firebase", name = "firebase-crashlytics" }
 
 # Play Core
 play-app-update = { group = "com.google.android.play", name = "app-update", version.ref = "playCore" }
 play-app-update-ktx = { group = "com.google.android.play", name = "app-update-ktx", version.ref = "playCore" }
+
+# Splash Screen
+androidx-core-splashscreen = { group = "androidx.core", name = "core-splashscreen", version.ref = "coreSplashscreen" }
+androidx-browser = { group = "androidx.browser", name = "browser", version.ref = "androidxBrowser" }
 
 # Credential Manager (Google Sign-In)
 credentials = { group = "androidx.credentials", name = "credentials", version.ref = "credentials" }
@@ -88,3 +97,4 @@ kotlin-serialization = { id = "org.jetbrains.kotlin.plugin.serialization", versi
 ksp = { id = "com.google.devtools.ksp", version.ref = "ksp" }
 secrets = { id = "com.google.android.libraries.mapsplatform.secrets-gradle-plugin", version.ref = "secrets" }
 google-services = { id = "com.google.gms.google-services", version.ref = "googleServices" }
+firebase-crashlytics = { id = "com.google.firebase.crashlytics", version.ref = "firebaseCrashlyticsPlugin" }

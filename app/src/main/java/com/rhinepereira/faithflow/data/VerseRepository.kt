@@ -9,7 +9,44 @@ import io.github.jan.supabase.postgrest.postgrest
 import io.github.jan.supabase.postgrest.query.Columns
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
+
+object CloudSyncGate {
+    private val mutex = Mutex()
+    private var lastFetchAt = 0L
+    private var lastUserId: String? = null
+
+    const val MIN_INTERVAL_MS = 15 * 60 * 1000L
+
+    fun invalidate() {
+        lastFetchAt = 0L
+        lastUserId = null
+    }
+
+    suspend fun runIfNeeded(userId: String, force: Boolean, fetch: suspend () -> Unit) {
+        if (!force) {
+            val now = System.currentTimeMillis()
+            if (userId == lastUserId && now - lastFetchAt < MIN_INTERVAL_MS) {
+                Log.d("FaithFlowSync", "Fetch skipped (cached, ${(now - lastFetchAt) / 1000}s ago)")
+                return
+            }
+        }
+        mutex.withLock {
+            if (!force) {
+                val now = System.currentTimeMillis()
+                if (userId == lastUserId && now - lastFetchAt < MIN_INTERVAL_MS) {
+                    Log.d("FaithFlowSync", "Fetch skipped (cached after lock)")
+                    return
+                }
+            }
+            fetch()
+            lastFetchAt = System.currentTimeMillis()
+            lastUserId = userId
+        }
+    }
+}
 
 class VerseRepository(private val context: Context, private val verseDao: VerseDao) {
 
@@ -60,6 +97,12 @@ class VerseRepository(private val context: Context, private val verseDao: VerseD
         // Soft-delete locally.
         verseDao.updateVerse(verse.copy(isDeleted = true, isSynced = false, userId = userId))
         scheduleSync()
+    }
+
+    suspend fun fetchFromSupabaseIfNeeded(userId: String, force: Boolean = false) {
+        CloudSyncGate.runIfNeeded(userId, force) {
+            fetchFromSupabase(userId)
+        }
     }
 
     suspend fun fetchFromSupabase(userId: String) = withContext(Dispatchers.IO) {

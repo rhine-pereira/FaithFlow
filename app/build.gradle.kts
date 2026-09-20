@@ -9,6 +9,7 @@ plugins {
     alias(libs.plugins.ksp)
     alias(libs.plugins.secrets)
     alias(libs.plugins.google.services)
+    alias(libs.plugins.firebase.crashlytics)
 }
 
 val localProperties = Properties()
@@ -38,7 +39,7 @@ android {
         minSdk = 24
         targetSdk = 36
         versionCode = 7
-        versionName = "1.1-beta01"
+        versionName = "1.1.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
@@ -65,10 +66,18 @@ android {
         compose = true
         buildConfig = true
     }
+
+    defaultConfig {
+        buildConfigField("String", "PRIVACY_POLICY_URL", "\"https://rhine-pereira.github.io/FaithFlow/privacy_policy.html\"")
+        buildConfigField("String", "TERMS_AND_CONDITIONS_URL", "\"https://rhine-pereira.github.io/FaithFlow/terms_and_conditions.html\"")
+        buildConfigField("String", "DATA_DELETION_URL", "\"https://rhine-pereira.github.io/FaithFlow/data_deletion.html\"")
+    }
 }
 
 dependencies {
     implementation(libs.androidx.core.ktx)
+    implementation(libs.androidx.core.splashscreen)
+    implementation(libs.androidx.browser)
     implementation(libs.androidx.lifecycle.runtime.ktx)
     implementation(libs.androidx.activity.compose)
     implementation(platform(libs.androidx.compose.bom))
@@ -94,6 +103,8 @@ dependencies {
     implementation(libs.firebase.auth)
     implementation(libs.firebase.auth.ktx)
     implementation(libs.firebase.config)
+    implementation(libs.firebase.analytics)
+    implementation(libs.firebase.crashlytics)
 
     // Play Core (App Update)
     implementation(libs.play.app.update)

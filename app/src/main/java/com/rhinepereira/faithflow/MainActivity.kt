@@ -36,12 +36,20 @@ import com.google.firebase.remoteconfig.ktx.remoteConfig
 import com.google.firebase.remoteconfig.ktx.remoteConfigSettings
 import android.widget.Toast
 import com.google.android.material.snackbar.Snackbar
+import com.google.firebase.analytics.FirebaseAnalytics
+import com.google.firebase.analytics.ktx.analytics
+import com.google.firebase.crashlytics.ktx.crashlytics
+import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
+import androidx.lifecycle.lifecycleScope
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 
 class MainActivity : ComponentActivity() {
     private var sharedText by mutableStateOf<String?>(null)
     private lateinit var appUpdateManager: AppUpdateManager
     private val updateRequestCode = 123
     private lateinit var remoteConfig: FirebaseRemoteConfig
+    private lateinit var analytics: FirebaseAnalytics
 
     private val installStateUpdatedListener = InstallStateUpdatedListener { state ->
         if (state.installStatus() == InstallStatus.DOWNLOADED) {
@@ -50,10 +58,15 @@ class MainActivity : ComponentActivity() {
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
+        installSplashScreen()
         super.onCreate(savedInstanceState)
+        analytics = Firebase.analytics
         appUpdateManager = AppUpdateManagerFactory.create(this)
-        setupRemoteConfig()
         handleIntent(intent)
+        lifecycleScope.launch {
+            delay(400)
+            setupRemoteConfig()
+        }
         
         enableEdgeToEdge()
         setContent {
@@ -100,6 +113,7 @@ class MainActivity : ComponentActivity() {
                                     onDeleteAccount = {
                                         authViewModel.deleteAccount(this@MainActivity) { success ->
                                             if (success) {
+                                                analytics.logEvent("account_deleted", null)
                                                 // auth status will automatically switch to SignedOut via listener
                                             }
                                         }
@@ -195,11 +209,14 @@ class MainActivity : ComponentActivity() {
 
     override fun onResume() {
         super.onResume()
-        appUpdateManager.appUpdateInfo.addOnSuccessListener { info ->
-            if (info.updateAvailability() == UpdateAvailability.DEVELOPER_TRIGGERED_UPDATE_IN_PROGRESS) {
-                startUpdateFlow(info, AppUpdateType.IMMEDIATE)
-            } else if (info.installStatus() == InstallStatus.DOWNLOADED) {
-                showUpdateSnackbar()
+        lifecycleScope.launch {
+            delay(300)
+            appUpdateManager.appUpdateInfo.addOnSuccessListener { info ->
+                if (info.updateAvailability() == UpdateAvailability.DEVELOPER_TRIGGERED_UPDATE_IN_PROGRESS) {
+                    startUpdateFlow(info, AppUpdateType.IMMEDIATE)
+                } else if (info.installStatus() == InstallStatus.DOWNLOADED) {
+                    showUpdateSnackbar()
+                }
             }
         }
     }
@@ -223,6 +240,7 @@ class MainActivity : ComponentActivity() {
         if (intent?.action == Intent.ACTION_SEND && intent.type == "text/plain") {
             intent.getStringExtra(Intent.EXTRA_TEXT)?.let {
                 sharedText = it
+                analytics.logEvent("share_import", null)
             }
         }
     }

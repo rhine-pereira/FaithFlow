@@ -11,7 +11,6 @@ import java.util.*
 class DailyViewModel(application: Application) : AndroidViewModel(application) {
     private val repository: VerseRepository
     private val dao: VerseDao
-    private val authRepository = AuthRepository()
     
     // State for the currently viewed date
     private val _targetDate = MutableStateFlow(getStartOfDay(System.currentTimeMillis()))
@@ -28,7 +27,7 @@ class DailyViewModel(application: Application) : AndroidViewModel(application) {
         dao = database.verseDao()
         repository = VerseRepository(application, dao)
         
-        val authStatus = authRepository.authStatusFlow()
+        val authStatus = AuthRepository.authStatus
         
         // Fetch record whenever targetDate or authStatus changes
         currentRecord = combine(authStatus, _targetDate) { status, date ->
@@ -43,7 +42,7 @@ class DailyViewModel(application: Application) : AndroidViewModel(application) {
             }
         }.stateIn(
             scope = viewModelScope,
-            started = SharingStarted.WhileSubscribed(5000),
+            started = SharingStarted.Eagerly,
             initialValue = null
         )
 
@@ -56,18 +55,9 @@ class DailyViewModel(application: Application) : AndroidViewModel(application) {
             }
         }.stateIn(
             scope = viewModelScope,
-            started = SharingStarted.WhileSubscribed(5000),
+            started = SharingStarted.Eagerly,
             initialValue = emptyList()
         )
-        
-        // Initial fetch from cloud
-        viewModelScope.launch {
-            authStatus.collect { status ->
-                if (status is AuthStatus.Authenticated) {
-                    repository.fetchFromSupabase(status.userId)
-                }
-            }
-        }
     }
 
     private fun getStartOfDay(timestamp: Long): Long {
@@ -108,7 +98,7 @@ class DailyViewModel(application: Application) : AndroidViewModel(application) {
     ) {
         val date = _targetDate.value
         val endOfDay = date + (24 * 60 * 60 * 1000)
-        val userId = authRepository.currentUserId ?: ""
+        val userId = AuthRepository.currentUserId ?: ""
         if (userId.isEmpty()) return
 
         val existing = dao.getRecordForDateSync(userId, date, endOfDay) ?: DailyRecord(date = date, userId = userId)
